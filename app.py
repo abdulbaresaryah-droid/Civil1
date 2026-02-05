@@ -1,272 +1,330 @@
 import streamlit as st
+import pandas as pd
 import math
 
-# --- 1. Page Configuration ---
+# Page configuration
 st.set_page_config(
-    page_title="RC Slab/Beam Designer",
+    page_title="RC Section Design - ACI",
     page_icon="🏗️",
     layout="wide"
 )
 
-# --- 2. Custom CSS for Professional UI ---
+# Custom CSS
 st.markdown("""
-<style>
+    <style>
     .main-header {
         font-size: 2.5rem;
-        color: #1E88E5;
+        color: #1f77b4;
         text-align: center;
+        margin-bottom: 2rem;
+    }
+    .section-header {
+        font-size: 1.8rem;
+        color: #2c3e50;
+        margin-top: 1.5rem;
         margin-bottom: 1rem;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        border-bottom: 3px solid #1f77b4;
+        padding-bottom: 0.5rem;
     }
-    .equation-box {
+    .stMetric {
         background-color: #f8f9fa;
-        padding: 15px;
-        border-radius: 8px;
-        border-left: 5px solid #1E88E5;
-        margin-bottom: 20px;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+        padding: 10px;
+        border-radius: 5px;
     }
-    .success-box {
-        background-color: #d4edda;
-        padding: 15px;
-        border-radius: 8px;
-        color: #155724;
-        font-weight: bold;
-        text-align: center;
-        border: 1px solid #c3e6cb;
-    }
-    .fail-box {
-        background-color: #f8d7da;
-        padding: 15px;
-        border-radius: 8px;
-        color: #721c24;
-        font-weight: bold;
-        text-align: center;
-        border: 1px solid #f5c6cb;
-    }
-</style>
+    </style>
 """, unsafe_allow_html=True)
 
-# --- Main Title ---
-st.markdown('<div class="main-header">🏗️ Reinforced Concrete Design (ACI 318)</div>', unsafe_allow_html=True)
-st.markdown("---")
+# Title
+st.markdown('<h1 class="main-header">🏗️ Reinforced Concrete Section Design (ACI)</h1>', unsafe_allow_html=True)
 
-# --- 3. Sidebar Inputs ---
-st.sidebar.header("1. Material Properties")
+# Sidebar for inputs
+st.sidebar.header("📊 Input Parameters")
 
-# Concrete Strength (f'c)
-fc = st.sidebar.slider(
-    "Concrete Compressive Strength (f'c) [MPa]",
-    min_value=20, max_value=80, value=25, step=1,
-    help="Specified compressive strength of concrete at 28 days."
-)
+# Input method selection
+input_method = st.sidebar.radio("Input Method", ["Sliders", "Manual Input"])
 
-# Steel Yield Strength (fy)
-fy = st.sidebar.select_slider(
-    "Steel Yield Strength (fy) [MPa]",
-    options=[240, 280, 350, 400, 420, 460, 500],
-    value=420
-)
+st.sidebar.markdown("---")
+st.sidebar.subheader("Material Properties")
 
-st.sidebar.header("2. Geometry")
-
-# Width (b)
-b = st.sidebar.slider(
-    "Section Width (b) [mm]",
-    min_value=100, max_value=2000, value=1000, step=50
-)
-
-# Total Depth (h)
-h = st.sidebar.slider(
-    "Section Total Depth (h) [mm]",
-    min_value=100, max_value=1500, value=150, step=10
-)
-
-# Concrete Cover
-cover = st.sidebar.slider(
-    "Concrete Cover [mm]",
-    min_value=10, max_value=100, value=20, step=5
-)
-
-st.sidebar.header("3. Loads & Factors")
-
-# Ultimate Moment (Mu)
-mu_val = st.sidebar.slider(
-    "Ultimate Moment (Mu) [kN.m]",
-    min_value=1.0, max_value=1000.0, value=13.7, step=0.1
-)
-
-# Initial j-factor (for estimation only)
-jd_init_factor = st.sidebar.slider(
-    "Initial j-factor assumption (default 0.95 for slabs)",
-    min_value=0.85, max_value=0.99, value=0.95, step=0.01
-)
-
-# --- 4. Calculation Engine ---
-
-# Calculate Effective Depth (d)
-d = h - cover
-
-# Calculate Beta1 (ACI 318)
-if fc <= 28:
-    beta1 = 0.85
+# Material properties inputs
+if input_method == "Sliders":
+    col1, col2 = st.sidebar.columns([3, 1])
+    with col1:
+        fy_slider = st.slider("Steel Yield Strength, fy (MPa)", 
+                             min_value=200.0, max_value=600.0, value=420.0, step=10.0)
+    with col2:
+        fy = st.number_input("fy", value=fy_slider, label_visibility="collapsed", key="fy_manual")
+    
+    col1, col2 = st.sidebar.columns([3, 1])
+    with col1:
+        fcu_slider = st.slider("Concrete Strength, f'c (MPa)", 
+                              min_value=15.0, max_value=50.0, value=25.0, step=2.5)
+    with col2:
+        fcu = st.number_input("fcu", value=fcu_slider, label_visibility="collapsed", key="fcu_manual")
 else:
-    beta1 = 0.85 - 0.05 * ((fc - 28) / 7)
-    if beta1 < 0.65: beta1 = 0.65
+    fy = st.sidebar.number_input("Steel Yield Strength, fy (MPa)", value=420.0, min_value=200.0, max_value=600.0)
+    fcu = st.sidebar.number_input("Concrete Strength, f'c (MPa)", value=25.0, min_value=15.0, max_value=50.0)
 
-# Layout: Split into two columns
-col1, col2 = st.columns([1, 1.3])
+st.sidebar.markdown("---")
+st.sidebar.subheader("Loading")
+
+if input_method == "Sliders":
+    col1, col2 = st.sidebar.columns([3, 1])
+    with col1:
+        Mu_slider = st.slider("Ultimate Moment, Mu (kN.m)", 
+                             min_value=0.0, max_value=200.0, value=13.7, step=0.1)
+    with col2:
+        Mu = st.number_input("Mu", value=Mu_slider, label_visibility="collapsed", key="Mu_manual")
+else:
+    Mu = st.sidebar.number_input("Ultimate Moment, Mu (kN.m)", value=13.7, min_value=0.0)
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("Section Dimensions")
+
+if input_method == "Sliders":
+    col1, col2 = st.sidebar.columns([3, 1])
+    with col1:
+        b_slider = st.slider("Width, b (mm)", 
+                            min_value=100.0, max_value=2000.0, value=1000.0, step=50.0)
+    with col2:
+        b = st.number_input("b", value=b_slider, label_visibility="collapsed", key="b_manual")
+    
+    col1, col2 = st.sidebar.columns([3, 1])
+    with col1:
+        h_slider = st.slider("Height, h (mm)", 
+                            min_value=100.0, max_value=500.0, value=150.0, step=10.0)
+    with col2:
+        h = st.number_input("h", value=h_slider, label_visibility="collapsed", key="h_manual")
+else:
+    b = st.sidebar.number_input("Width, b (mm)", value=1000.0, min_value=100.0)
+    h = st.sidebar.number_input("Height, h (mm)", value=150.0, min_value=100.0)
+
+cover = st.sidebar.number_input("Cover (mm)", value=20.0, min_value=15.0, max_value=75.0)
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("Design Parameters")
+
+phi = st.sidebar.number_input("Strength Reduction Factor, φ", value=0.9, min_value=0.65, max_value=0.9, step=0.05)
+jd = st.sidebar.number_input("Moment Arm Factor, jd", value=0.95, min_value=0.85, max_value=0.95, step=0.01)
+beta1 = st.sidebar.number_input("β₁ Factor", value=0.85, min_value=0.65, max_value=0.85, step=0.05)
+
+# Perform calculations
+d = h - cover
+Mu_Nmm = Mu * 1e6
+As_initial = Mu_Nmm / (phi * fy * jd * d)
+a_initial = (As_initial * fy) / (0.85 * fcu * b)
+As_calculated = Mu_Nmm / (phi * fy * (d - a_initial/2))
+As_min = (1.4 * b * d) / fy
+As_required = max(As_calculated, As_min)
+a_final = (As_required * fy) / (0.85 * fcu * b)
+c = a_final / beta1
+es = ((d - c) / c) * 0.003
+phi_Mn_Nmm = phi * As_required * fy * (d - a_final/2)
+phi_Mn = phi_Mn_Nmm / 1e6
+
+# Input Summary
+st.markdown('<h2 class="section-header">📋 Input Summary</h2>', unsafe_allow_html=True)
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.metric("Mu", f"{Mu} kN.m")
+    st.metric("b", f"{b} mm")
+with col2:
+    st.metric("h", f"{h} mm")
+    st.metric("Cover", f"{cover} mm")
+with col3:
+    st.metric("fy", f"{fy} MPa")
+    st.metric("f'c", f"{fcu} MPa")
+with col4:
+    st.metric("φ", f"{phi}")
+    st.metric("jd", f"{jd}")
+
+# Design Calculations
+st.markdown('<h2 class="section-header">🔢 Design Calculations</h2>', unsafe_allow_html=True)
+
+# Create DataFrame for calculations
+calc_data = {
+    'Parameter': [],
+    'Formula': [],
+    'Substitution': [],
+    'Result': []
+}
+
+# Row 1: d
+calc_data['Parameter'].append('d')
+calc_data['Formula'].append('d = h - cover')
+calc_data['Substitution'].append(f'd = {h} - {cover}')
+calc_data['Result'].append(f'{d:.1f} mm')
+
+# Row 2: As initial
+calc_data['Parameter'].append('As initial')
+calc_data['Formula'].append('As = Mu / (φ × fy × jd × d)')
+calc_data['Substitution'].append(f'As = {Mu*1e6:.2e} / ({phi} × {fy} × {jd} × {d})')
+calc_data['Result'].append(f'{As_initial:.2f} mm²')
+
+# Row 3: a
+calc_data['Parameter'].append('a')
+calc_data['Formula'].append("a = (As × fy) / (0.85 × f'c × b)")
+calc_data['Substitution'].append(f'a = ({As_initial:.2f} × {fy}) / (0.85 × {fcu} × {b})')
+calc_data['Result'].append(f'{a_initial:.2f} mm')
+
+# Row 4: As
+calc_data['Parameter'].append('As')
+calc_data['Formula'].append('As = Mu / (φ × fy × (d - a/2))')
+calc_data['Substitution'].append(f'As = {Mu*1e6:.2e} / ({phi} × {fy} × {d - a_initial/2:.2f})')
+calc_data['Result'].append(f'{As_calculated:.2f} mm²')
+
+# Row 5: As min
+calc_data['Parameter'].append('As min')
+calc_data['Formula'].append('As,min = (1.4 × b × d) / fy')
+calc_data['Substitution'].append(f'As,min = (1.4 × {b} × {d}) / {fy}')
+calc_data['Result'].append(f'{As_min:.2f} mm²')
+
+# Row 6: Check As
+governing = "As min" if As_required == As_min else "As calculated"
+calc_data['Parameter'].append('Check As')
+calc_data['Formula'].append('As,req = max(As, As,min)')
+calc_data['Substitution'].append(f'As,req = max({As_calculated:.2f}, {As_min:.2f})')
+calc_data['Result'].append(f'{As_required:.2f} mm² ({governing})')
+
+# Row 7: c
+calc_data['Parameter'].append('c')
+calc_data['Formula'].append('c = a / β₁')
+calc_data['Substitution'].append(f'c = {a_final:.2f} / {beta1}')
+calc_data['Result'].append(f'{c:.2f} mm')
+
+# Row 8: εs
+calc_data['Parameter'].append('εs')
+calc_data['Formula'].append('εs = ((d - c) / c) × 0.003')
+calc_data['Substitution'].append(f'εs = ({d} - {c:.2f}) / {c:.2f} × 0.003')
+calc_data['Result'].append(f'{es:.5f}')
+
+# Row 9: Check εs
+strain_check_result = "✓ OK" if es >= 0.002 else "✗ FAIL"
+strain_status = "Tension" if es >= 0.005 else ("Transition" if es >= 0.002 else "Compression")
+calc_data['Parameter'].append('Check εs')
+calc_data['Formula'].append('εs ≥ 0.002')
+calc_data['Substitution'].append(f'{es:.5f} ≥ 0.002')
+calc_data['Result'].append(f'{strain_check_result} ({strain_status})')
+
+# Row 10: φMn
+calc_data['Parameter'].append('φMn')
+calc_data['Formula'].append('φMn = φ × As × fy × (d - a/2)')
+calc_data['Substitution'].append(f'φMn = {phi} × {As_required:.2f} × {fy} × {d - a_final/2:.2f}')
+calc_data['Result'].append(f'{phi_Mn:.2f} kN.m')
+
+# Row 11: Check φMn
+capacity_check_result = "✓ SAFE" if phi_Mn >= Mu else "✗ UNSAFE"
+calc_data['Parameter'].append('Check φMn')
+calc_data['Formula'].append('φMn ≥ Mu')
+calc_data['Substitution'].append(f'{phi_Mn:.2f} ≥ {Mu}')
+calc_data['Result'].append(f'{capacity_check_result}')
+
+# Create and style DataFrame
+df = pd.DataFrame(calc_data)
+
+# Apply styling
+def highlight_result(row):
+    if 'SAFE' in str(row['Result']):
+        return ['background-color: #d4edda'] * len(row)
+    elif 'UNSAFE' in str(row['Result']) or 'FAIL' in str(row['Result']):
+        return ['background-color: #f8d7da'] * len(row)
+    elif 'OK' in str(row['Result']):
+        return ['background-color: #d4edda'] * len(row)
+    else:
+        return [''] * len(row)
+
+styled_df = df.style.apply(highlight_result, axis=1)\
+    .set_properties(**{
+        'text-align': 'left',
+        'font-size': '14px',
+        'border': '1px solid #ddd'
+    })\
+    .set_table_styles([
+        {'selector': 'th', 'props': [('background-color', '#1f77b4'), 
+                                      ('color', 'white'), 
+                                      ('font-weight', 'bold'),
+                                      ('text-align', 'left'),
+                                      ('padding', '12px')]},
+        {'selector': 'td', 'props': [('padding', '10px')]},
+        {'selector': '.col0', 'props': [('font-weight', 'bold')]},
+        {'selector': '.col1', 'props': [('background-color', '#e3f2fd'), 
+                                         ('font-family', 'monospace')]},
+        {'selector': '.col2', 'props': [('background-color', '#fff3e0'), 
+                                         ('font-family', 'monospace')]},
+        {'selector': '.col3', 'props': [('background-color', '#e8f5e9'), 
+                                         ('font-weight', 'bold'),
+                                         ('text-align', 'center')]}
+    ])
+
+st.dataframe(styled_df, use_container_width=True, height=500)
+
+# Final Summary
+st.markdown('<h2 class="section-header">✅ Design Summary</h2>', unsafe_allow_html=True)
+
+col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("📊 Design Parameters")
-    st.write(f"**Effective Depth ($d$):** {d} mm")
-    st.write(f"**Width ($b$):** {b} mm")
-    st.write(f"**Materials:** $f'_c={fc}$ MPa | $f_y={fy}$ MPa")
-    st.write(f"**Design Moment ($M_u$):** {mu_val} kN.m")
+    st.subheader("Required Reinforcement")
+    st.metric("As required", f"{As_required:.2f} mm²", delta=f"{As_required - As_min:.2f} mm² over minimum")
     
-    st.info("Calculation follows ACI 318 Ultimate Strength Design Method.")
+    # Rebar suggestions
+    st.subheader("Rebar Suggestions")
+    rebar_data = {
+        'Configuration': [],
+        'Provided Area': [],
+        'Over Design': []
+    }
+    
+    rebar_sizes = [10, 12, 16, 20, 25]
+    rebar_areas = [78.5, 113.1, 201.1, 314.2, 490.9]
+    
+    for size, area in zip(rebar_sizes, rebar_areas):
+        num_bars = math.ceil(As_required / area)
+        if num_bars <= 12:
+            provided_area = num_bars * area
+            over_design = ((provided_area - As_required) / As_required) * 100
+            rebar_data['Configuration'].append(f'{num_bars}Ø{size} mm')
+            rebar_data['Provided Area'].append(f'{provided_area:.1f} mm²')
+            rebar_data['Over Design'].append(f'+{over_design:.1f}%')
+    
+    rebar_df = pd.DataFrame(rebar_data)
+    st.dataframe(rebar_df, use_container_width=True, hide_index=True)
 
 with col2:
-    st.subheader("🧮 Step-by-Step Calculation")
-
-    # --- Step 1: Initial Estimation ---
-    st.markdown("#### Step 1: Initial Steel Estimate")
-    st.write("Assuming tension-controlled section ($\phi=0.9$) and initial lever arm:")
+    st.subheader("Safety Checks")
     
-    st.latex(r"A_{s,approx} = \frac{M_u \times 10^6}{\phi f_y (j_{coeff} \cdot d)}")
+    # Determine overall safety
+    strain_safe = es >= 0.002
+    capacity_safe = phi_Mn >= Mu
+    overall_safe = strain_safe and capacity_safe
     
-    # Define variables before display
-    phi_assume = 0.9
-    # Calculate As initial (Moment converted to N.mm)
-    as_initial = (mu_val * 1e6) / (phi_assume * fy * (jd_init_factor * d))
-    
-    st.markdown(f"""
-    <div class="equation-box">
-    Using assumed $j \approx {jd_init_factor}$: <br>
-    $A_{s,approx} = {as_initial:.2f} \ mm^2$
-    </div>
-    """, unsafe_allow_html=True)
-
-    # --- Step 2: Calculate Equivalent Stress Block (a) ---
-    st.markdown("#### Step 2: Calculate Stress Block Depth ($a$)")
-    st.latex(r"a = \frac{A_{s,approx} f_y}{0.85 f'_c b}")
-    
-    a_calc = (as_initial * fy) / (0.85 * fc * b)
-    
-    st.markdown(f"""
-    <div class="equation-box">
-    $a = {a_calc:.2f} \ mm$
-    </div>
-    """, unsafe_allow_html=True)
-
-    # --- Step 3: Refine As ---
-    st.markdown("#### Step 3: Required Steel Area ($A_{s, req}$)")
-    st.latex(r"A_{s,req} = \frac{M_u \times 10^6}{\phi f_y (d - a/2)}")
-    
-    as_req = (mu_val * 1e6) / (phi_assume * fy * (d - (a_calc / 2)))
-    
-    st.markdown(f"""
-    <div class="equation-box">
-    $A_{s,req} = \mathbf{{{as_req:.2f}}} \ mm^2$
-    </div>
-    """, unsafe_allow_html=True)
-
-    # --- Step 4: Minimum Reinforcement (ACI 318) ---
-    st.markdown("#### Step 4: Minimum Reinforcement Check ($A_{s, min}$)")
-    st.write("According to ACI 318, $A_{s,min}$ is the greater of:")
-    st.latex(r"1) \ \frac{0.25 \sqrt{f'_c}}{f_y} b_w d \quad \text{and} \quad 2) \ \frac{1.4}{f_y} b_w d")
-    
-    as_min_1 = ((0.25 * math.sqrt(fc)) / fy) * b * d
-    as_min_2 = (1.4 / fy) * b * d
-    as_min = max(as_min_1, as_min_2)
-    
-    st.markdown(f"""
-    <div class="equation-box">
-    1) {as_min_1:.2f} $mm^2$ <br>
-    2) {as_min_2:.2f} $mm^2$ <br>
-    $\Rightarrow A_{s, min} = \mathbf{{{as_min:.2f}}} \ mm^2$
-    </div>
-    """, unsafe_allow_html=True)
-
-    # --- Final Selection ---
-    st.markdown("### ✅ Final Design Steel Area ($A_s$)")
-    as_final = max(as_req, as_min)
-    
-    st.success(f"Required As = {as_final:.2f} mm²")
-    
-    if as_final == as_min:
-        st.caption("⚠️ Governed by Minimum Reinforcement Requirements.")
+    if overall_safe:
+        st.success("✅ DESIGN IS SAFE", icon="✅")
     else:
-        st.caption("Governed by Flexural Strength Requirements.")
-
-# --- 5. Analysis & Safety Check ---
-st.markdown("---")
-st.header("🛡️ Safety & Strain Analysis Check")
-
-col_check1, col_check2, col_check3 = st.columns(3)
-
-with col_check1:
-    st.markdown("**1. Neutral Axis Depth ($c$)**")
-    # Recalculate 'a' based on FINAL As (in case As_min governed)
-    a_final = (as_final * fy) / (0.85 * fc * b)
-    c_depth = a_final / beta1
+        st.error("❌ DESIGN IS NOT SAFE", icon="❌")
     
-    st.latex(r"c = a_{final} / \beta_1")
-    st.write(f"$c = {c_depth:.2f}$ mm")
-    st.caption(f"Using $\\beta_1 = {beta1:.2f}$")
-
-with col_check2:
-    st.markdown("**2. Net Tensile Strain ($\epsilon_t$)**")
-    st.latex(r"\epsilon_t = \frac{d-c}{c} \times 0.003")
+    st.markdown("**Check Details:**")
     
-    epsilon_t = ((d - c_depth) / c_depth) * 0.003
-    st.write(f"$\epsilon_t = {epsilon_t:.5f}$")
-    
-    # Determine Strength Reduction Factor (phi) based on strain
-    if epsilon_t >= 0.005:
-        phi_actual = 0.9
-        status = "Tension Controlled (OK)"
-        color = "green"
-    elif epsilon_t <= 0.002:
-        phi_actual = 0.65
-        status = "Compression Controlled (Brittle!)"
-        color = "red"
+    # Strain check
+    if strain_safe:
+        st.success(f"✓ Strain Check: Pass (εs = {es:.5f})")
     else:
-        # Transition zone
-        phi_actual = 0.65 + 0.25 * ((epsilon_t - 0.002) / 0.003)
-        status = "Transition Zone"
-        color = "orange"
-        
-    st.markdown(f"<span style='color:{color}; font-weight:bold'>{status}</span>", unsafe_allow_html=True)
+        st.error(f"✗ Strain Check: Fail (εs = {es:.5f})")
+    
+    # Capacity check
+    capacity_ratio = phi_Mn / Mu
+    if capacity_safe:
+        st.success(f"✓ Capacity Check: Pass (φMn/Mu = {capacity_ratio:.3f})")
+    else:
+        st.error(f"✗ Capacity Check: Fail (φMn/Mu = {capacity_ratio:.3f})")
+    
+    # Section type
+    st.info(f"Section Type: {strain_status}-controlled")
+    
+    # Additional metrics
+    st.metric("Design Moment Capacity", f"{phi_Mn:.2f} kN.m", delta=f"{phi_Mn - Mu:.2f} kN.m")
+    st.metric("Utilization Ratio", f"{(Mu/phi_Mn)*100:.1f}%")
 
-with col_check3:
-    st.markdown("**3. Moment Capacity ($\phi M_n$)**")
-    
-    # Calculate Final Moment Capacity
-    mn = as_final * fy * (d - a_final/2) * 1e-6 # Convert to kN.m
-    phi_mn = phi_actual * mn
-    
-    st.latex(r"\phi M_n = \phi A_s f_y (d - a/2)")
-    st.write(f"Capacity = **{phi_mn:.2f} kN.m**")
-
-# --- Final Conclusion ---
-st.markdown("### Conclusion")
-if phi_mn >= mu_val:
-    st.markdown(f"""
-    <div class="success-box">
-    ✅ SECTION IS SAFE <br>
-    Capacity ({phi_mn:.2f} kN.m) > Demand ({mu_val} kN.m)
-    </div>
-    """, unsafe_allow_html=True)
-else:
-    st.markdown(f"""
-    <div class="fail-box">
-    ❌ SECTION IS UNSAFE <br>
-    Capacity ({phi_mn:.2f} kN.m) < Demand ({mu_val} kN.m) <br>
-    Recommendation: Increase Depth (h) or Concrete Strength.
-    </div>
-    """, unsafe_allow_html=True)
-    
-# --- Footer ---
+# Footer
 st.markdown("---")
-st.caption("Developed with Streamlit & Python | ACI 318 Standard")
+st.markdown('<p style="text-align: center; color: #7f8c8d; font-size: 0.9rem;">ACI 318 Code | Developed for Educational Purposes</p>', unsafe_allow_html=True)
