@@ -51,14 +51,10 @@ st.markdown("""
     .katex {
         font-size: 0.95em;
     }
-    /* تنسيق الجدول */
-    .dataframe {
-        font-size: 0.9rem;
-    }
     </style>
 """, unsafe_allow_html=True)
 
-# Rebar data table - جدول الحديد الكامل
+# Rebar data table
 rebar_data = {
     6: [28.3, 57, 85, 113, 142, 170, 198, 226, 255],
     8: [50.3, 101, 151, 201, 252, 302, 352, 402, 453],
@@ -109,12 +105,17 @@ st.sidebar.subheader("Material Properties")
 
 # Material properties
 if input_method == "Sliders":
+    st.sidebar.info("💡 Move sliders from 0 to set values")
+    
     fy = st.sidebar.slider("Steel Yield Strength, fy (MPa)", 
-                          min_value=200.0, max_value=600.0, 
-                          value=420.0, step=10.0, key='fy')
+                          min_value=0.0, max_value=600.0, 
+                          value=st.session_state.get('fy', 0.0), 
+                          step=10.0, key='fy')
+    
     fcu = st.sidebar.slider("Concrete Strength, f'c (MPa)", 
-                           min_value=15.0, max_value=50.0, 
-                           value=25.0, step=2.5, key='fcu')
+                           min_value=0.0, max_value=50.0, 
+                           value=st.session_state.get('fcu', 0.0), 
+                           step=2.5, key='fcu')
 else:
     fy = st.sidebar.number_input("Steel Yield Strength, fy (MPa)", 
                                 value=None, min_value=0.0, max_value=600.0, 
@@ -129,7 +130,8 @@ st.sidebar.subheader("Loading")
 if input_method == "Sliders":
     Mu = st.sidebar.slider("Ultimate Moment, Mu (kN.m)", 
                           min_value=0.0, max_value=200.0, 
-                          value=13.7, step=0.1, key='Mu')
+                          value=st.session_state.get('Mu', 0.0), 
+                          step=0.1, key='Mu')
 else:
     Mu = st.sidebar.number_input("Ultimate Moment, Mu (kN.m)", 
                                 value=None, min_value=0.0, 
@@ -140,14 +142,19 @@ st.sidebar.subheader("Section Dimensions")
 
 if input_method == "Sliders":
     b = st.sidebar.slider("Width, b (mm)", 
-                         min_value=100.0, max_value=2000.0, 
-                         value=1000.0, step=50.0, key='b')
+                         min_value=0.0, max_value=2000.0, 
+                         value=st.session_state.get('b', 0.0), 
+                         step=50.0, key='b')
+    
     h = st.sidebar.slider("Height, h (mm)", 
-                         min_value=100.0, max_value=500.0, 
-                         value=150.0, step=10.0, key='h')
+                         min_value=0.0, max_value=500.0, 
+                         value=st.session_state.get('h', 0.0), 
+                         step=10.0, key='h')
+    
     cover = st.sidebar.slider("Cover (mm)", 
-                             min_value=15.0, max_value=75.0,
-                             value=20.0, step=5.0, key='cover')
+                             min_value=0.0, max_value=75.0,
+                             value=st.session_state.get('cover', 0.0), 
+                             step=5.0, key='cover')
 else:
     b = st.sidebar.number_input("Width, b (mm)", 
                                value=None, min_value=0.0, 
@@ -164,14 +171,19 @@ st.sidebar.subheader("Design Parameters")
 
 if input_method == "Sliders":
     phi = st.sidebar.slider("Strength Reduction Factor, φ", 
-                           min_value=0.65, max_value=0.9,
-                           value=0.9, step=0.05, key='phi')
+                           min_value=0.0, max_value=0.9,
+                           value=st.session_state.get('phi', 0.0), 
+                           step=0.05, key='phi')
+    
     jd = st.sidebar.slider("Moment Arm Factor, jd", 
-                          min_value=0.85, max_value=0.95,
-                          value=0.95, step=0.01, key='jd')
+                          min_value=0.0, max_value=0.95,
+                          value=st.session_state.get('jd', 0.0), 
+                          step=0.01, key='jd')
+    
     beta1 = st.sidebar.slider("β₁ Factor", 
-                             min_value=0.65, max_value=0.85,
-                             value=0.85, step=0.05, key='beta1')
+                             min_value=0.0, max_value=0.85,
+                             value=st.session_state.get('beta1', 0.0), 
+                             step=0.05, key='beta1')
 else:
     phi = st.sidebar.number_input("Strength Reduction Factor, φ", 
                                  value=None, min_value=0.0, max_value=0.9, 
@@ -183,22 +195,38 @@ else:
                                    value=None, min_value=0.0, max_value=0.85, 
                                    step=0.05, key='beta1', placeholder="Enter β₁")
 
-# Validation
-all_inputs_valid = all([
-    fy is not None and fy > 0,
-    fcu is not None and fcu > 0,
-    Mu is not None and Mu > 0,
-    b is not None and b > 0,
-    h is not None and h > 0,
-    cover is not None and cover > 0,
-    phi is not None and phi > 0,
-    jd is not None and jd > 0,
-    beta1 is not None and beta1 > 0
-])
+# Validation - Check if all inputs are valid (not None and > 0)
+if input_method == "Sliders":
+    all_inputs_valid = all([
+        fy > 0,
+        fcu > 0,
+        Mu > 0,
+        b > 0,
+        h > 0,
+        cover > 0,
+        phi > 0,
+        jd > 0,
+        beta1 > 0
+    ])
+else:
+    all_inputs_valid = all([
+        fy is not None and fy > 0,
+        fcu is not None and fcu > 0,
+        Mu is not None and Mu > 0,
+        b is not None and b > 0,
+        h is not None and h > 0,
+        cover is not None and cover > 0,
+        phi is not None and phi > 0,
+        jd is not None and jd > 0,
+        beta1 is not None and beta1 > 0
+    ])
 
 if not all_inputs_valid:
     st.warning("⚠️ Please enter all input values to proceed with calculations")
-    st.info("💡 Use the sidebar to input all required parameters")
+    if input_method == "Sliders":
+        st.info("💡 Move all sliders from 0 to set the required values")
+    else:
+        st.info("💡 Use the sidebar to input all required parameters")
     st.stop()
 
 # Calculations
@@ -442,7 +470,7 @@ for diameter in [10, 12, 14, 16, 18, 20, 22, 25]:
     area_per_bar = rebar_data[diameter][0]
     num_bars = math.ceil(As_required / area_per_bar)
     
-    if num_bars <= 9 and suggestion_count < 6:  # أفضل 6 اقتراحات
+    if num_bars <= 9 and suggestion_count < 6:
         total_area = rebar_data[diameter][num_bars - 1]
         excess = ((total_area - As_required) / As_required) * 100
         
@@ -468,14 +496,14 @@ with col1:
     selected_diameter = st.selectbox(
         "Bar Diameter (mm)",
         options=list(rebar_data.keys()),
-        index=list(rebar_data.keys()).index(16)  # default 16mm
+        index=list(rebar_data.keys()).index(16)
     )
 
 with col2:
     selected_num_bars = st.selectbox(
         "Number of Bars",
         options=list(range(1, 10)),
-        index=3  # default 4 bars
+        index=3
     )
 
 # Get selected reinforcement area
@@ -551,7 +579,6 @@ with col3:
 st.markdown("---")
 st.markdown("### 📋 Complete Rebar Area Table")
 
-# Create DataFrame
 df_data = []
 for diameter, areas in rebar_data.items():
     row = [diameter] + areas
