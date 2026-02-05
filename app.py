@@ -105,7 +105,7 @@ st.sidebar.subheader("Material Properties")
 
 # Material properties
 if input_method == "Sliders":
-    st.sidebar.info("💡 Move sliders from 0 to set values")
+    st.sidebar.info("💡 Set all values to proceed")
     
     fy = st.sidebar.slider("Steel Yield Strength, fy (MPa)", 
                           min_value=0.0, max_value=600.0, 
@@ -129,9 +129,9 @@ st.sidebar.subheader("Loading")
 
 if input_method == "Sliders":
     Mu = st.sidebar.slider("Ultimate Moment, Mu (kN.m)", 
-                          min_value=0.0, max_value=200.0, 
+                          min_value=0.0, max_value=500.0, 
                           value=st.session_state.get('Mu', 0.0), 
-                          step=0.1, key='Mu')
+                          step=0.5, key='Mu')
 else:
     Mu = st.sidebar.number_input("Ultimate Moment, Mu (kN.m)", 
                                 value=None, min_value=0.0, 
@@ -147,7 +147,7 @@ if input_method == "Sliders":
                          step=50.0, key='b')
     
     h = st.sidebar.slider("Height, h (mm)", 
-                         min_value=0.0, max_value=500.0, 
+                         min_value=0.0, max_value=1000.0, 
                          value=st.session_state.get('h', 0.0), 
                          step=10.0, key='h')
     
@@ -195,7 +195,7 @@ else:
                                    value=None, min_value=0.0, max_value=0.85, 
                                    step=0.05, key='beta1', placeholder="Enter β₁")
 
-# Validation - Check if all inputs are valid (not None and > 0)
+# Validation - Must check ALL values are greater than 0
 if input_method == "Sliders":
     all_inputs_valid = all([
         fy > 0,
@@ -203,7 +203,8 @@ if input_method == "Sliders":
         Mu > 0,
         b > 0,
         h > 0,
-        cover > 0,
+        cover >= 0,  # cover can be 0
+        h > cover,   # h must be > cover
         phi > 0,
         jd > 0,
         beta1 > 0
@@ -215,7 +216,8 @@ else:
         Mu is not None and Mu > 0,
         b is not None and b > 0,
         h is not None and h > 0,
-        cover is not None and cover > 0,
+        cover is not None and cover >= 0,
+        h is not None and cover is not None and h > cover,
         phi is not None and phi > 0,
         jd is not None and jd > 0,
         beta1 is not None and beta1 > 0
@@ -224,45 +226,114 @@ else:
 if not all_inputs_valid:
     st.warning("⚠️ Please enter all input values to proceed with calculations")
     if input_method == "Sliders":
-        st.info("💡 Move all sliders from 0 to set the required values")
+        st.info("💡 Set all sliders to appropriate values")
+        st.info("⚠️ Make sure: h > cover")
     else:
-        st.info("💡 Use the sidebar to input all required parameters")
+        st.info("💡 Fill in all required parameters in the sidebar")
     st.stop()
 
-# Calculations
-d = h - cover
-Mu_Nmm = Mu * 1e6
-As_initial = Mu_Nmm / (phi * fy * jd * d)
-a_initial = (As_initial * fy) / (0.85 * fcu * b)
-As_calculated = Mu_Nmm / (phi * fy * (d - a_initial/2))
+# Calculations - التحقق من القيم قبل الحساب
+try:
+    # Step 1: Effective depth
+    d = h - cover
+    
+    if d <= 0:
+        st.error("❌ Error: Effective depth d = h - cover must be > 0")
+        st.stop()
+    
+    # Step 2: Convert Mu to N.mm
+    Mu_Nmm = Mu * 1e6  # kN.m to N.mm
+    
+    # Step 3: Initial As using approximate formula
+    # Mu = φ * As * fy * jd * d
+    # As = Mu / (φ * fy * jd * d)
+    denominator_initial = phi * fy * jd * d
+    if denominator_initial == 0:
+        st.error("❌ Error: φ * fy * jd * d cannot be zero")
+        st.stop()
+    
+    As_initial = Mu_Nmm / denominator_initial
+    
+    # Step 4: Initial depth of compression block
+    # a = (As * fy) / (0.85 * f'c * b)
+    denominator_a = 0.85 * fcu * b
+    if denominator_a == 0:
+        st.error("❌ Error: 0.85 * f'c * b cannot be zero")
+        st.stop()
+    
+    a_initial = (As_initial * fy) / denominator_a
+    
+    # Step 5: Refined As using exact formula
+    # Mu = φ * As * fy * (d - a/2)
+    # As = Mu / [φ * fy * (d - a/2)]
+    lever_arm = d - a_initial/2
+    if lever_arm <= 0:
+        st.error("❌ Error: Lever arm (d - a/2) must be > 0")
+        st.stop()
+    
+    As_calculated = Mu_Nmm / (phi * fy * lever_arm)
+    
+    # Step 6: Minimum steel area
+    # As,min = max(0.25*√f'c/fy * bw*d, 1.4/fy * bw*d)
+    As_min_1 = (0.25 * math.sqrt(fcu) / fy) * b * d
+    As_min_2 = (1.4 / fy) * b * d
+    As_min = max(As_min_1, As_min_2)
+    
+    # Step 7: Required As
+    As_required = max(As_calculated, As_min)
+    
+    # Step 8: Final depth of compression block
+    a_final = (As_required * fy) / denominator_a
+    
+    # Step 9: Neutral axis depth
+    c = a_final / beta1
+    
+    # Step 10: Steel strain
+    if c <= 0:
+        st.error("❌ Error: Neutral axis depth c must be > 0")
+        st.stop()
+    
+    es = ((d - c) / c) * 0.003
+    
+    # Step 11: Design moment capacity
+    phi_Mn_Nmm = phi * As_required * fy * (d - a_final/2)
+    phi_Mn = phi_Mn_Nmm / 1e6  # N.mm to kN.m
+    
+    # Step 12: Safety checks
+    strain_safe = es >= 0.002
+    capacity_safe = phi_Mn >= Mu
+    
+    if es >= 0.005:
+        strain_status = "Tension ✓"
+    elif es >= 0.002:
+        strain_status = "Transition ⚠"
+    else:
+        strain_status = "Compression ✗"
+    
+    utilization = (Mu / phi_Mn) * 100 if phi_Mn > 0 else 0
 
-# As_min
-As_min_1 = (0.25 * math.sqrt(fcu) / fy) * b * d
-As_min_2 = (1.4 * b * d) / fy
-As_min = max(As_min_1, As_min_2)
-
-As_required = max(As_calculated, As_min)
-a_final = (As_required * fy) / (0.85 * fcu * b)
-c = a_final / beta1
-es = ((d - c) / c) * 0.003
-phi_Mn_Nmm = phi * As_required * fy * (d - a_final/2)
-phi_Mn = phi_Mn_Nmm / 1e6
+except ZeroDivisionError:
+    st.error("❌ Calculation Error: Division by zero detected. Please check your inputs.")
+    st.stop()
+except Exception as e:
+    st.error(f"❌ Calculation Error: {str(e)}")
+    st.stop()
 
 # Input Summary
 st.markdown('<h2 class="section-header">📋 Input Summary</h2>', unsafe_allow_html=True)
 col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.metric("Mu", f"{Mu} kN.m")
-    st.metric("b", f"{b} mm")
+    st.metric("Mu", f"{Mu:.2f} kN.m")
+    st.metric("b", f"{b:.0f} mm")
 with col2:
-    st.metric("h", f"{h} mm")
-    st.metric("cover", f"{cover} mm")
+    st.metric("h", f"{h:.0f} mm")
+    st.metric("cover", f"{cover:.0f} mm")
 with col3:
-    st.metric("fy", f"{fy} MPa")
-    st.metric("f'c", f"{fcu} MPa")
+    st.metric("fy", f"{fy:.0f} MPa")
+    st.metric("f'c", f"{fcu:.1f} MPa")
 with col4:
-    st.metric("φ", f"{phi}")
-    st.metric("jd", f"{jd}")
+    st.metric("φ", f"{phi:.2f}")
+    st.metric("jd", f"{jd:.2f}")
 
 # Calculations
 st.markdown('<h2 class="section-header">🔢 Calculations</h2>', unsafe_allow_html=True)
@@ -275,7 +346,7 @@ calculations.append({
     'step': '1',
     'description': 'Effective Depth',
     'formula': r'd = h - \text{cover}',
-    'substitution': rf'{h} - {cover}',
+    'substitution': rf'{h:.0f} - {cover:.0f}',
     'result': f'{d:.1f} mm',
     'variable': 'd'
 })
@@ -285,7 +356,7 @@ calculations.append({
     'step': '2',
     'description': 'Initial As',
     'formula': r'A_s = \frac{M_u}{\phi f_y jd \cdot d}',
-    'substitution': rf'\frac{{{Mu*1e6:.1e}}}{{{phi} \times {fy} \times {jd} \times {d:.1f}}}',
+    'substitution': rf'\frac{{{Mu*1e6:.2e}}}{{{phi:.2f} \times {fy:.0f} \times {jd:.2f} \times {d:.1f}}}',
     'result': f'{As_initial:.1f} mm²',
     'variable': 'As,init'
 })
@@ -295,7 +366,7 @@ calculations.append({
     'step': '3',
     'description': 'Depth of Block',
     'formula': r"a = \frac{A_s f_y}{0.85 f'_c b}",
-    'substitution': rf'\frac{{{As_initial:.1f} \times {fy}}}{{0.85 \times {fcu} \times {b}}}',
+    'substitution': rf'\frac{{{As_initial:.1f} \times {fy:.0f}}}{{0.85 \times {fcu:.1f} \times {b:.0f}}}',
     'result': f'{a_initial:.2f} mm',
     'variable': 'a'
 })
@@ -305,7 +376,7 @@ calculations.append({
     'step': '4',
     'description': 'Refined As',
     'formula': r'A_s = \frac{M_u}{\phi f_y (d - a/2)}',
-    'substitution': rf'\frac{{{Mu*1e6:.1e}}}{{{phi} \times {fy} \times ({d:.1f} - {a_initial/2:.2f})}}',
+    'substitution': rf'\frac{{{Mu*1e6:.2e}}}{{{phi:.2f} \times {fy:.0f} \times ({d:.1f} - {a_initial/2:.2f})}}',
     'result': f'{As_calculated:.1f} mm²',
     'variable': 'As,calc'
 })
@@ -315,7 +386,7 @@ calculations.append({
     'step': '5',
     'description': 'Minimum As',
     'formula': r'A_{s,min} = \max\left(\frac{0.25\sqrt{f_c^\prime}}{f_y}b_w d, \frac{1.4}{f_y}b_w d\right)',
-    'substitution': rf'\max\left(\frac{{0.25 \times \sqrt{{{fcu}}}}}{{{fy}}} \times {b} \times {d:.1f}, \frac{{1.4}}{{{fy}}} \times {b} \times {d:.1f}\right)',
+    'substitution': rf'\max\left(\frac{{0.25 \times {math.sqrt(fcu):.2f}}}{{{fy:.0f}}} \times {b:.0f} \times {d:.1f}, \frac{{1.4}}{{{fy:.0f}}} \times {b:.0f} \times {d:.1f}\right)',
     'result': f'{As_min:.1f} mm²',
     'variable': 'As,min'
 })
@@ -336,7 +407,7 @@ calculations.append({
     'step': '7',
     'description': 'Final a',
     'formula': r"a = \frac{A_{s,req} f_y}{0.85 f'_c b}",
-    'substitution': rf'\frac{{{As_required:.1f} \times {fy}}}{{0.85 \times {fcu} \times {b}}}',
+    'substitution': rf'\frac{{{As_required:.1f} \times {fy:.0f}}}{{0.85 \times {fcu:.1f} \times {b:.0f}}}',
     'result': f'{a_final:.2f} mm',
     'variable': 'a,final'
 })
@@ -346,7 +417,7 @@ calculations.append({
     'step': '8',
     'description': 'Neutral Axis',
     'formula': r'c = \frac{a}{\beta_1}',
-    'substitution': rf'\frac{{{a_final:.2f}}}{{{beta1}}}',
+    'substitution': rf'\frac{{{a_final:.2f}}}{{{beta1:.2f}}}',
     'result': f'{c:.2f} mm',
     'variable': 'c'
 })
@@ -362,14 +433,6 @@ calculations.append({
 })
 
 # Step 10: Check εs
-strain_safe = es >= 0.002
-if es >= 0.005:
-    strain_status = "Tension ✓"
-elif es >= 0.002:
-    strain_status = "Transition ⚠"
-else:
-    strain_status = "Compression ✗"
-
 calculations.append({
     'step': '10',
     'description': 'Check εs',
@@ -384,20 +447,17 @@ calculations.append({
     'step': '11',
     'description': 'Design Capacity',
     'formula': r'\phi M_n = \phi A_{s,req} f_y (d - a/2)',
-    'substitution': rf'{phi} \times {As_required:.1f} \times {fy} \times ({d:.1f} - {a_final/2:.2f})',
+    'substitution': rf'{phi:.2f} \times {As_required:.1f} \times {fy:.0f} \times ({d:.1f} - {a_final/2:.2f})',
     'result': f'{phi_Mn:.2f} kN.m',
     'variable': 'φMn'
 })
 
 # Step 12: Check capacity
-capacity_safe = phi_Mn >= Mu
-utilization = (Mu / phi_Mn) * 100 if phi_Mn > 0 else 0
-
 calculations.append({
     'step': '12',
     'description': 'Capacity Check',
     'formula': r'\phi M_n \geq M_u',
-    'substitution': f'{phi_Mn:.2f} ≥ {Mu}',
+    'substitution': f'{phi_Mn:.2f} ≥ {Mu:.2f}',
     'result': f'{"SAFE ✓" if capacity_safe else "UNSAFE ✗"} ({utilization:.1f}%)',
     'variable': 'Check'
 })
@@ -452,7 +512,7 @@ with col3:
     
     st.markdown("**Checks:**")
     st.markdown(f"{'✅' if strain_safe else '❌'} Steel Strain: {es:.5f} {'≥' if strain_safe else '<'} 0.002")
-    st.markdown(f"{'✅' if capacity_safe else '❌'} Capacity: φMn={phi_Mn:.2f} {'≥' if capacity_safe else '<'} Mu={Mu}")
+    st.markdown(f"{'✅' if capacity_safe else '❌'} Capacity: φMn={phi_Mn:.2f} {'≥' if capacity_safe else '<'} Mu={Mu:.2f}")
     st.markdown(f"{'✅' if As_required >= As_min else '❌'} Minimum Steel")
     
     st.metric("Capacity Ratio", f"{phi_Mn/Mu:.2f}")
