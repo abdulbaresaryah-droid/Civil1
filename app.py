@@ -27,55 +27,6 @@ st.markdown("""
         border-bottom: 2px solid #1f77b4;
         padding-bottom: 0.3rem;
     }
-    /* جدول مضغوط */
-    .calculation-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 10px 0;
-        font-size: 0.95rem;
-    }
-    .calculation-table th {
-        background-color: #1f77b4;
-        color: white;
-        padding: 8px;
-        text-align: left;
-        border: 1px solid #ddd;
-    }
-    .calculation-table td {
-        padding: 6px 8px;
-        border: 1px solid #ddd;
-        vertical-align: middle;
-    }
-    .calculation-table tr:nth-child(even) {
-        background-color: #f8f9fa;
-    }
-    .step-number {
-        font-weight: bold;
-        color: #1f77b4;
-        min-width: 30px;
-    }
-    .formula-cell {
-        min-width: 200px;
-    }
-    .substitution-cell {
-        min-width: 250px;
-        font-family: 'Courier New', monospace;
-        color: #2c3e50;
-    }
-    .result-cell {
-        min-width: 150px;
-        font-weight: bold;
-        color: #27ae60;
-    }
-    .status-pass {
-        color: #27ae60;
-        font-weight: bold;
-    }
-    .status-fail {
-        color: #e74c3c;
-        font-weight: bold;
-    }
-    /* تقليل المسافات */
     .stMetric {
         background-color: #f8f9fa;
         padding: 5px;
@@ -91,15 +42,25 @@ st.markdown("""
         padding-top: 1rem;
         padding-bottom: 1rem;
     }
+    /* تقليل المسافات بين الصفوف */
+    div[data-testid="column"] {
+        padding: 2px 5px !important;
+    }
+    .element-container {
+        margin-bottom: 0px !important;
+    }
+    /* تنسيق LaTeX */
+    .katex {
+        font-size: 0.95em;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state - بدون قيم افتراضية
+# Initialize session state
 if 'initialized' not in st.session_state:
     st.session_state.initialized = True
-    # لا نضع قيم افتراضية
 
-# Reset function - يحذف كل القيم
+# Reset function
 def clear_all_inputs():
     keys_to_delete = ['fy', 'fcu', 'Mu', 'b', 'h', 'cover', 'phi', 'jd', 'beta1']
     for key in keys_to_delete:
@@ -225,7 +186,12 @@ Mu_Nmm = Mu * 1e6
 As_initial = Mu_Nmm / (phi * fy * jd * d)
 a_initial = (As_initial * fy) / (0.85 * fcu * b)
 As_calculated = Mu_Nmm / (phi * fy * (d - a_initial/2))
-As_min = (1.4 * b * d) / fy
+
+# As_min - NEW FORMULA
+As_min_1 = (0.25 * math.sqrt(fcu) / fy) * b * d
+As_min_2 = (1.4 * b * d) / fy
+As_min = max(As_min_1, As_min_2)
+
 As_required = max(As_calculated, As_min)
 a_final = (As_required * fy) / (0.85 * fcu * b)
 c = a_final / beta1
@@ -249,7 +215,7 @@ with col4:
     st.metric("φ", f"{phi}")
     st.metric("jd", f"{jd}")
 
-# Calculations Table
+# Calculations
 st.markdown('<h2 class="section-header">🔢 Calculations</h2>', unsafe_allow_html=True)
 
 # Create calculation steps
@@ -260,7 +226,7 @@ calculations.append({
     'step': '1',
     'description': 'Effective Depth',
     'formula': r'd = h - \text{cover}',
-    'substitution': rf'\frac{{{h} - {cover}}}{{1}}',
+    'substitution': rf'{h} - {cover}',
     'result': f'{d:.1f} mm',
     'variable': 'd'
 })
@@ -295,12 +261,12 @@ calculations.append({
     'variable': 'As,calc'
 })
 
-# Step 5: As min
+# Step 5: As min - NEW
 calculations.append({
     'step': '5',
     'description': 'Minimum As',
-    'formula': r'A_{s,min} = \frac{1.4 bd}{f_y}',
-    'substitution': rf'\frac{{1.4 \times {b} \times {d:.1f}}}{{{fy}}}',
+    'formula': r'A_{s,min} = \max\left(\frac{0.25\sqrt{f_c^\prime}}{f_y}b_w d, \frac{1.4}{f_y}b_w d\right)',
+    'substitution': rf'\max\left(\frac{{0.25 \times \sqrt{{{fcu}}}}}{{{fy}}} \times {b} \times {d:.1f}, \frac{{1.4}}{{{fy}}} \times {b} \times {d:.1f}\right)',
     'result': f'{As_min:.1f} mm²',
     'variable': 'As,min'
 })
@@ -387,33 +353,30 @@ calculations.append({
     'variable': 'Check'
 })
 
-# Display as table using columns
+# Display calculations - متقارب بدون فواصل
 for calc in calculations:
-    col1, col2, col3, col4 = st.columns([0.5, 2, 2.5, 1.5])
+    col1, col2, col3, col4 = st.columns([0.4, 2.5, 2.5, 1.6])
     
     with col1:
         st.markdown(f"**{calc['step']}**")
     
     with col2:
-        st.markdown(f"**{calc['description']}**")
-        st.latex(calc['formula'])
+        # النص والمعادلة في نفس السطر
+        st.markdown(f"**{calc['description']}:** ${calc['formula']}$")
     
     with col3:
-        # Display substitution as LaTeX
         st.latex(calc['substitution'])
     
     with col4:
-        # Check if it's a status result
         if 'PASS' in calc['result'] or 'SAFE' in calc['result']:
             st.success(calc['result'])
         elif 'FAIL' in calc['result'] or 'UNSAFE' in calc['result']:
             st.error(calc['result'])
         else:
             st.info(f"**{calc['result']}**")
-    
-    st.markdown("---")
 
 # Summary
+st.markdown("---")
 st.markdown('<h2 class="section-header">✅ Design Summary</h2>', unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns(3)
