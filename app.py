@@ -38,16 +38,13 @@ st.markdown("""
     div[data-testid="stMetricLabel"] {
         font-size: 0.9rem;
     }
-    /* تقليل المسافات بين الصفوف */
     .row-widget {
         margin-top: 0.2rem;
         margin-bottom: 0.2rem;
     }
-    /* تقليل المسافات بين الأعمدة */
     div[data-testid="column"] {
         padding: 0.3rem;
     }
-    /* تقليل padding العام */
     .block-container {
         padding-top: 1rem;
         padding-bottom: 1rem;
@@ -56,37 +53,35 @@ st.markdown("""
         margin-top: 0.3rem;
         margin-bottom: 0.3rem;
     }
-    /* حجم المعادلات */
     .katex {
         font-size: 1.1em;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state with None values
-if 'initialized' not in st.session_state:
-    st.session_state.initialized = True
-    st.session_state.fy = None
-    st.session_state.fcu = None
-    st.session_state.Mu = None
-    st.session_state.b = None
-    st.session_state.h = None
-    st.session_state.cover = None
-    st.session_state.phi = None
-    st.session_state.jd = None
-    st.session_state.beta1 = None
+# Initialize session state
+if 'inputs_cleared' not in st.session_state:
+    st.session_state.inputs_cleared = False
 
-# Reset function - يضع None لكل القيم
+# Default values
+default_values = {
+    'fy': 420.0,
+    'fcu': 25.0,
+    'Mu': 13.7,
+    'b': 1000.0,
+    'h': 150.0,
+    'cover': 20.0,
+    'phi': 0.9,
+    'jd': 0.95,
+    'beta1': 0.85
+}
+
+# Reset function
 def reset_values():
-    st.session_state.fy = None
-    st.session_state.fcu = None
-    st.session_state.Mu = None
-    st.session_state.b = None
-    st.session_state.h = None
-    st.session_state.cover = None
-    st.session_state.phi = None
-    st.session_state.jd = None
-    st.session_state.beta1 = None
+    for key in default_values.keys():
+        if key in st.session_state:
+            del st.session_state[key]
+    st.session_state.inputs_cleared = True
 
 # Title
 st.markdown('<h1 class="main-header">🏗️ RC Section Design (ACI)</h1>', unsafe_allow_html=True)
@@ -94,7 +89,7 @@ st.markdown('<h1 class="main-header">🏗️ RC Section Design (ACI)</h1>', unsa
 # Sidebar for inputs
 st.sidebar.header("📊 Input Parameters")
 
-# Reset button - باللون الأحمر
+# Reset button
 if st.sidebar.button("🗑️ Clear All Inputs", type="secondary", use_container_width=True):
     reset_values()
     st.rerun()
@@ -111,20 +106,20 @@ st.sidebar.subheader("Material Properties")
 if input_method == "Sliders":
     fy = st.sidebar.slider("Steel Yield Strength, fy (MPa)", 
                           min_value=200.0, max_value=600.0, 
-                          value=st.session_state.fy if st.session_state.fy is not None else 420.0,
+                          value=default_values['fy'],
                           step=10.0, key='fy')
     
     fcu = st.sidebar.slider("Concrete Strength, f'c (MPa)", 
                            min_value=15.0, max_value=50.0, 
-                           value=st.session_state.fcu if st.session_state.fcu is not None else 25.0,
+                           value=default_values['fcu'],
                            step=2.5, key='fcu')
 else:
     fy = st.sidebar.number_input("Steel Yield Strength, fy (MPa)", 
-                                value=st.session_state.fy if st.session_state.fy is not None else 0.0,
+                                value=st.session_state.get('fy', 0.0),
                                 min_value=0.0, max_value=600.0, key='fy',
                                 help="Enter value > 0")
     fcu = st.sidebar.number_input("Concrete Strength, f'c (MPa)", 
-                                 value=st.session_state.fcu if st.session_state.fcu is not None else 0.0,
+                                 value=st.session_state.get('fcu', 0.0),
                                  min_value=0.0, max_value=50.0, key='fcu',
                                  help="Enter value > 0")
 
@@ -134,11 +129,11 @@ st.sidebar.subheader("Loading")
 if input_method == "Sliders":
     Mu = st.sidebar.slider("Ultimate Moment, Mu (kN.m)", 
                           min_value=0.0, max_value=200.0, 
-                          value=st.session_state.Mu if st.session_state.Mu is not None else 13.7,
+                          value=default_values['Mu'],
                           step=0.1, key='Mu')
 else:
     Mu = st.sidebar.number_input("Ultimate Moment, Mu (kN.m)", 
-                                value=st.session_state.Mu if st.session_state.Mu is not None else 0.0,
+                                value=st.session_state.get('Mu', 0.0),
                                 min_value=0.0, key='Mu',
                                 help="Enter value > 0")
 
@@ -148,29 +143,29 @@ st.sidebar.subheader("Section Dimensions")
 if input_method == "Sliders":
     b = st.sidebar.slider("Width, b (mm)", 
                          min_value=100.0, max_value=2000.0, 
-                         value=st.session_state.b if st.session_state.b is not None else 1000.0,
+                         value=default_values['b'],
                          step=50.0, key='b')
     
     h = st.sidebar.slider("Height, h (mm)", 
                          min_value=100.0, max_value=500.0, 
-                         value=st.session_state.h if st.session_state.h is not None else 150.0,
+                         value=default_values['h'],
                          step=10.0, key='h')
     
     cover = st.sidebar.slider("Cover (mm)", 
                              min_value=15.0, max_value=75.0,
-                             value=st.session_state.cover if st.session_state.cover is not None else 20.0,
+                             value=default_values['cover'],
                              step=5.0, key='cover')
 else:
     b = st.sidebar.number_input("Width, b (mm)", 
-                               value=st.session_state.b if st.session_state.b is not None else 0.0,
+                               value=st.session_state.get('b', 0.0),
                                min_value=0.0, key='b',
                                help="Enter value > 0")
     h = st.sidebar.number_input("Height, h (mm)", 
-                               value=st.session_state.h if st.session_state.h is not None else 0.0,
+                               value=st.session_state.get('h', 0.0),
                                min_value=0.0, key='h',
                                help="Enter value > 0")
     cover = st.sidebar.number_input("Cover (mm)", 
-                                   value=st.session_state.cover if st.session_state.cover is not None else 0.0,
+                                   value=st.session_state.get('cover', 0.0),
                                    min_value=0.0, max_value=75.0, key='cover',
                                    help="Enter value > 0")
 
@@ -180,28 +175,28 @@ st.sidebar.subheader("Design Parameters")
 if input_method == "Sliders":
     phi = st.sidebar.slider("Strength Reduction Factor, φ", 
                            min_value=0.65, max_value=0.9,
-                           value=st.session_state.phi if st.session_state.phi is not None else 0.9,
+                           value=default_values['phi'],
                            step=0.05, key='phi')
     jd = st.sidebar.slider("Moment Arm Factor, jd", 
                           min_value=0.85, max_value=0.95,
-                          value=st.session_state.jd if st.session_state.jd is not None else 0.95,
+                          value=default_values['jd'],
                           step=0.01, key='jd')
     beta1 = st.sidebar.slider("β₁ Factor", 
                              min_value=0.65, max_value=0.85,
-                             value=st.session_state.beta1 if st.session_state.beta1 is not None else 0.85,
+                             value=default_values['beta1'],
                              step=0.05, key='beta1')
 else:
     phi = st.sidebar.number_input("Strength Reduction Factor, φ", 
-                                 value=st.session_state.phi if st.session_state.phi is not None else 0.0,
+                                 value=st.session_state.get('phi', 0.0),
                                  min_value=0.0, max_value=0.9, step=0.05, key='phi')
     jd = st.sidebar.number_input("Moment Arm Factor, jd", 
-                                value=st.session_state.jd if st.session_state.jd is not None else 0.0,
+                                value=st.session_state.get('jd', 0.0),
                                 min_value=0.0, max_value=0.95, step=0.01, key='jd')
     beta1 = st.sidebar.number_input("β₁ Factor", 
-                                   value=st.session_state.beta1 if st.session_state.beta1 is not None else 0.0,
+                                   value=st.session_state.get('beta1', 0.0),
                                    min_value=0.0, max_value=0.85, step=0.05, key='beta1')
 
-# Validation - التحقق من إدخال جميع القيم
+# Validation
 all_inputs_valid = all([
     fy and fy > 0,
     fcu and fcu > 0,
@@ -233,9 +228,9 @@ es = ((d - c) / c) * 0.003
 phi_Mn_Nmm = phi * As_required * fy * (d - a_final/2)
 phi_Mn = phi_Mn_Nmm / 1e6
 
-# Input Summary - مضغوط
+# Input Summary
 st.markdown('<h2 class="section-header">📋 Input Summary</h2>', unsafe_allow_html=True)
-col1, col2, col3, col4 = st.columns(4)
+col col4 = st.columns(4)
 with col1:
     st.metric("Mu", f"{Mu} kN.m")
     st.metric("b", f"{b} mm")
@@ -249,7 +244,7 @@ with col4:
     st.metric("φ", f"{phi}")
     st.metric("jd", f"{jd}")
 
-# Design Calculations - مضغوط
+# Design Calculations
 st.markdown('<h2 class="section-header">🔢 Calculations</h2>', unsafe_allow_html=True)
 
 # Headers
@@ -265,7 +260,7 @@ with col3:
 col1, col2, col3 = st.columns([2, 2, 1.2])
 with col1:
     st.markdown("**1. d**")
-    st.latex(r'd = h - cover')
+    st.latex(r'd = h - \text{cover}')
 with col2:
     st.code(f'{h} - {cover}', language='python')
 with col3:
@@ -316,7 +311,7 @@ col1, col2, col3 = st.columns([2, 2, 1.2])
 governing = "min" if As_required == As_min else "calc"
 with col1:
     st.markdown("**6. As,req**")
-    st.latex(r'max(A_s, A_{s,min})')
+    st.latex(r'A_{s,req} = \max(A_s, A_{s,min})')
 with col2:
     st.code(f'max({As_calculated:.1f}, {As_min:.1f})', language='python')
 with col3:
@@ -346,7 +341,7 @@ with col3:
 # Step 9: Check εs
 col1, col2, col3 = st.columns([2, 2, 1.2])
 strain_safe = es >= 0.002
-strain_status = "T" if es >= 0.005 else ("Tr" if es >= 0.002 else "C")
+strain_status = "Tension" if es >= 0.005 else ("Transition" if es >= 0.002 else "Compression")
 with col1:
     st.markdown("**9. Check εs**")
     st.latex(r'\varepsilon_s \geq 0.002')
@@ -383,7 +378,7 @@ with col3:
     else:
         st.error("✗ UNSAFE")
 
-# Summary - مضغوط
+# Summary
 st.markdown('<h2 class="section-header">✅ Summary</h2>', unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
@@ -392,7 +387,6 @@ with col1:
     st.markdown("**Reinforcement**")
     st.metric("As required", f"{As_required:.1f} mm²")
     
-    # Rebar suggestions - compact
     st.markdown("**Suggestions:**")
     rebar_sizes = [(10, 78.5), (12, 113.1), (16, 201.1), (20, 314.2)]
     for size, area in rebar_sizes[:3]:
