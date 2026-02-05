@@ -42,19 +42,40 @@ st.markdown("""
         padding-top: 1rem;
         padding-bottom: 1rem;
     }
-    /* تقليل المسافات بين الصفوف */
     div[data-testid="column"] {
         padding: 2px 5px !important;
     }
     .element-container {
         margin-bottom: 0px !important;
     }
-    /* تنسيق LaTeX */
     .katex {
         font-size: 0.95em;
     }
+    /* تنسيق الجدول */
+    .dataframe {
+        font-size: 0.9rem;
+    }
     </style>
 """, unsafe_allow_html=True)
+
+# Rebar data table - جدول الحديد الكامل
+rebar_data = {
+    6: [28.3, 57, 85, 113, 142, 170, 198, 226, 255],
+    8: [50.3, 101, 151, 201, 252, 302, 352, 402, 453],
+    10: [78.5, 157, 236, 314, 393, 471, 550, 628, 707],
+    12: [113.1, 226, 339, 452, 565, 678, 791, 904, 1017],
+    14: [153.9, 308, 461, 615, 769, 923, 1077, 1231, 1385],
+    16: [201.1, 402, 603, 804, 1005, 1206, 1407, 1608, 1809],
+    18: [254.5, 509, 763, 1017, 1272, 1527, 1781, 2036, 2290],
+    20: [314.2, 628, 942, 1256, 1570, 1884, 2199, 2513, 2827],
+    22: [380.1, 760, 1140, 1520, 1900, 2281, 2661, 3041, 3421],
+    25: [490.9, 982, 1473, 1964, 2454, 2945, 3436, 3927, 4418],
+    28: [615.8, 1232, 1847, 2463, 3079, 3695, 4310, 4926, 5542],
+    32: [804.2, 1609, 2413, 3217, 4021, 4826, 5630, 6434, 7238],
+    36: [1017.9, 2036, 3054, 4072, 5089, 6107, 7125, 8143, 9161],
+    40: [1256.6, 2513, 3770, 5027, 6283, 7540, 8796, 10053, 11310],
+    50: [1963.5, 3928, 5892, 7856, 9820, 11784, 13748, 15712, 17676]
+}
 
 # Initialize session state
 if 'initialized' not in st.session_state:
@@ -187,7 +208,7 @@ As_initial = Mu_Nmm / (phi * fy * jd * d)
 a_initial = (As_initial * fy) / (0.85 * fcu * b)
 As_calculated = Mu_Nmm / (phi * fy * (d - a_initial/2))
 
-# As_min - NEW FORMULA
+# As_min
 As_min_1 = (0.25 * math.sqrt(fcu) / fy) * b * d
 As_min_2 = (1.4 * b * d) / fy
 As_min = max(As_min_1, As_min_2)
@@ -261,7 +282,7 @@ calculations.append({
     'variable': 'As,calc'
 })
 
-# Step 5: As min - NEW
+# Step 5: As min
 calculations.append({
     'step': '5',
     'description': 'Minimum As',
@@ -353,7 +374,7 @@ calculations.append({
     'variable': 'Check'
 })
 
-# Display calculations - متقارب بدون فواصل
+# Display calculations
 for calc in calculations:
     col1, col2, col3, col4 = st.columns([0.4, 2.5, 2.5, 1.6])
     
@@ -361,7 +382,6 @@ for calc in calculations:
         st.markdown(f"**{calc['step']}**")
     
     with col2:
-        # النص والمعادلة في نفس السطر
         st.markdown(f"**{calc['description']}:** ${calc['formula']}$")
     
     with col3:
@@ -382,20 +402,9 @@ st.markdown('<h2 class="section-header">✅ Design Summary</h2>', unsafe_allow_h
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.markdown("**📏 Reinforcement**")
+    st.markdown("**📏 Required Steel Area**")
     st.metric("As Required", f"{As_required:.1f} mm²")
     st.metric("Effective Depth", f"{d:.1f} mm")
-    
-    st.markdown("**💡 Bar Suggestions:**")
-    rebar_sizes = [(10, 78.5), (12, 113.1), (16, 201.1), (20, 314.2), (25, 490.9)]
-    suggestions_shown = 0
-    for size, area in rebar_sizes:
-        num_bars = math.ceil(As_required / area)
-        if num_bars <= 12 and suggestions_shown < 4:
-            total_area = num_bars * area
-            excess = ((total_area - As_required) / As_required) * 100
-            st.caption(f"• {num_bars}Ø{size} = {total_area:.0f} mm² (+{excess:.1f}%)")
-            suggestions_shown += 1
 
 with col2:
     st.markdown("**🔍 Analysis**")
@@ -419,6 +428,140 @@ with col3:
     st.markdown(f"{'✅' if As_required >= As_min else '❌'} Minimum Steel")
     
     st.metric("Capacity Ratio", f"{phi_Mn/Mu:.2f}")
+
+# Reinforcement Selection Section
+st.markdown("---")
+st.markdown('<h2 class="section-header">🔧 Reinforcement Selection</h2>', unsafe_allow_html=True)
+
+# Auto suggestions
+st.markdown("### 💡 Automatic Suggestions")
+col1, col2, col3 = st.columns(3)
+
+suggestion_count = 0
+for diameter in [10, 12, 14, 16, 18, 20, 22, 25]:
+    area_per_bar = rebar_data[diameter][0]
+    num_bars = math.ceil(As_required / area_per_bar)
+    
+    if num_bars <= 9 and suggestion_count < 6:  # أفضل 6 اقتراحات
+        total_area = rebar_data[diameter][num_bars - 1]
+        excess = ((total_area - As_required) / As_required) * 100
+        
+        if suggestion_count % 3 == 0:
+            with col1:
+                st.info(f"**{num_bars}Ø{diameter}**\nAs = {total_area:.0f} mm²\n(+{excess:.1f}%)")
+        elif suggestion_count % 3 == 1:
+            with col2:
+                st.info(f"**{num_bars}Ø{diameter}**\nAs = {total_area:.0f} mm²\n(+{excess:.1f}%)")
+        else:
+            with col3:
+                st.info(f"**{num_bars}Ø{diameter}**\nAs = {total_area:.0f} mm²\n(+{excess:.1f}%)")
+        
+        suggestion_count += 1
+
+# Manual Selection
+st.markdown("---")
+st.markdown("### 🎯 Manual Selection & Verification")
+
+col1, col2, col3 = st.columns([1, 1, 2])
+
+with col1:
+    selected_diameter = st.selectbox(
+        "Bar Diameter (mm)",
+        options=list(rebar_data.keys()),
+        index=list(rebar_data.keys()).index(16)  # default 16mm
+    )
+
+with col2:
+    selected_num_bars = st.selectbox(
+        "Number of Bars",
+        options=list(range(1, 10)),
+        index=3  # default 4 bars
+    )
+
+# Get selected reinforcement area
+selected_As = rebar_data[selected_diameter][selected_num_bars - 1]
+
+# Verify selected reinforcement
+st.markdown("---")
+st.markdown("### ✅ Selected Reinforcement Verification")
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric("Selected Config", f"{selected_num_bars}Ø{selected_diameter}")
+
+with col2:
+    st.metric("Provided As", f"{selected_As:.1f} mm²")
+    excess_percentage = ((selected_As - As_required) / As_required) * 100
+    st.caption(f"Excess: {excess_percentage:+.1f}%")
+
+with col3:
+    check_As = selected_As >= As_required
+    if check_As:
+        st.success(f"✓ As Check\n{selected_As:.0f} ≥ {As_required:.0f}")
+    else:
+        st.error(f"✗ As Check\n{selected_As:.0f} < {As_required:.0f}")
+
+with col4:
+    # Re-calculate capacity with selected As
+    a_selected = (selected_As * fy) / (0.85 * fcu * b)
+    c_selected = a_selected / beta1
+    es_selected = ((d - c_selected) / c_selected) * 0.003
+    phi_Mn_selected = (phi * selected_As * fy * (d - a_selected/2)) / 1e6
+    
+    check_capacity = phi_Mn_selected >= Mu
+    if check_capacity:
+        st.success(f"✓ Capacity Check\nφMn = {phi_Mn_selected:.2f} kN.m")
+    else:
+        st.error(f"✗ Capacity Check\nφMn = {phi_Mn_selected:.2f} kN.m")
+
+# Detailed verification
+st.markdown("---")
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.markdown("**📊 Analysis with Selected Steel**")
+    st.metric("a (selected)", f"{a_selected:.2f} mm")
+    st.metric("c (selected)", f"{c_selected:.2f} mm")
+    st.metric("c/d ratio", f"{(c_selected/d):.3f}")
+
+with col2:
+    st.markdown("**⚡ Strain Analysis**")
+    st.metric("εs (selected)", f"{es_selected:.5f}")
+    
+    if es_selected >= 0.005:
+        st.success("✓ Tension Controlled")
+    elif es_selected >= 0.002:
+        st.warning("⚠ Transition Zone")
+    else:
+        st.error("✗ Compression Controlled")
+
+with col3:
+    st.markdown("**🎯 Final Status**")
+    final_safe = check_As and check_capacity and (es_selected >= 0.002)
+    
+    if final_safe:
+        st.success("### ✅ SELECTED CONFIG IS SAFE")
+    else:
+        st.error("### ❌ SELECTED CONFIG FAILED")
+    
+    st.metric("Utilization", f"{(Mu/phi_Mn_selected)*100:.1f}%")
+
+# Rebar Table
+st.markdown("---")
+st.markdown("### 📋 Complete Rebar Area Table")
+
+# Create DataFrame
+df_data = []
+for diameter, areas in rebar_data.items():
+    row = [diameter] + areas
+    df_data.append(row)
+
+df = pd.DataFrame(df_data, columns=['Ø (mm)', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
+df = df.set_index('Ø (mm)')
+
+st.dataframe(df, use_container_width=True)
+st.caption("📝 Note: All areas in mm²")
 
 # Footer
 st.markdown("---")
