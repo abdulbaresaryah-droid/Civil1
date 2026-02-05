@@ -42,15 +42,6 @@ st.markdown("""
         padding-top: 1rem;
         padding-bottom: 1rem;
     }
-    div[data-testid="column"] {
-        padding: 2px 5px !important;
-    }
-    .element-container {
-        margin-bottom: 0px !important;
-    }
-    .katex {
-        font-size: 0.95em;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -73,278 +64,193 @@ rebar_data = {
     50: [1963.5, 3928, 5892, 7856, 9820, 11784, 13748, 15712, 17676]
 }
 
-# Initialize session state for sync
+# Initialize session state
 if 'initialized' not in st.session_state:
     st.session_state.initialized = True
-    # Initialize all values
-    st.session_state.fy_val = 0.0
-    st.session_state.fcu_val = 0.0
-    st.session_state.Mu_val = 0.0
-    st.session_state.b_val = 0.0
-    st.session_state.h_val = 0.0
-    st.session_state.cover_val = 0.0
-    st.session_state.phi_val = 0.0
-    st.session_state.jd_val = 0.0
-    st.session_state.beta1_val = 0.0
+    st.session_state.fy = 420.0
+    st.session_state.fcu = 25.0
+    st.session_state.Mu = 100.0
+    st.session_state.b = 250.0
+    st.session_state.h = 500.0
+    st.session_state.cover = 40.0
+    st.session_state.phi = 0.9
+    st.session_state.jd = 0.9
+    st.session_state.beta1 = 0.85
 
-# Reset function - clears both slider and manual input
+# Reset function
 def clear_all_inputs():
-    st.session_state.fy_val = 0.0
-    st.session_state.fcu_val = 0.0
-    st.session_state.Mu_val = 0.0
-    st.session_state.b_val = 0.0
-    st.session_state.h_val = 0.0
-    st.session_state.cover_val = 0.0
-    st.session_state.phi_val = 0.0
-    st.session_state.jd_val = 0.0
-    st.session_state.beta1_val = 0.0
-    
-    # Clear the keys
-    keys_to_delete = ['fy', 'fcu', 'Mu', 'b', 'h', 'cover', 'phi', 'jd', 'beta1',
-                      'fy_manual', 'fcu_manual', 'Mu_manual', 'b_manual', 
-                      'h_manual', 'cover_manual', 'phi_manual', 'jd_manual', 'beta1_manual']
-    for key in keys_to_delete:
-        if key in st.session_state:
-            del st.session_state[key]
+    st.session_state.fy = 0.0
+    st.session_state.fcu = 0.0
+    st.session_state.Mu = 0.0
+    st.session_state.b = 0.0
+    st.session_state.h = 0.0
+    st.session_state.cover = 0.0
+    st.session_state.phi = 0.0
+    st.session_state.jd = 0.0
+    st.session_state.beta1 = 0.0
 
 # Title
 st.markdown('<h1 class="main-header">🏗️ RC Section Design (ACI & ECP)</h1>', unsafe_allow_html=True)
 
-# Sidebar
-st.sidebar.header("📊 Input Parameters")
-
 # Design Code Selection
-design_code = st.sidebar.selectbox(
-    "🔧 Design Code",
-    ["ACI 318", "Egyptian Code (ECP 203)"],
-    index=0
-)
+col1, col2, col3 = st.columns([2, 1, 1])
+with col1:
+    design_code = st.selectbox(
+        "🔧 Design Code",
+        ["ACI 318", "Egyptian Code (ECP 203)"],
+        index=0
+    )
+with col3:
+    if st.button("🗑️ Clear All", type="secondary", use_container_width=True):
+        clear_all_inputs()
+        st.rerun()
 
-# Clear button
-if st.sidebar.button("🗑️ Clear All Inputs", type="secondary", use_container_width=True):
-    clear_all_inputs()
-    st.rerun()
+st.markdown("---")
 
-st.sidebar.markdown("---")
+# Input Section
+st.markdown('<h2 class="section-header">📋 Input Parameters</h2>', unsafe_allow_html=True)
 
-# Input method
-input_method = st.sidebar.radio("Input Method", ["Sliders", "Manual Input"])
+# Material Properties
+st.markdown("### Material Properties")
+col1, col2 = st.columns(2)
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("Material Properties")
+with col1:
+    st.markdown("**Steel Yield Strength, fy (MPa)**")
+    col_slider, col_input = st.columns([3, 1])
+    with col_slider:
+        fy_slider = st.slider("fy_slider", 0.0, 600.0, st.session_state.fy, 10.0, 
+                             label_visibility="collapsed", key='fy_slider_key')
+    with col_input:
+        fy_input = st.number_input("fy_input", value=fy_slider, min_value=0.0, max_value=600.0, 
+                                  step=10.0, label_visibility="collapsed", key='fy_input_key')
+    st.session_state.fy = fy_input
+    fy = fy_input
 
-# Sync function
-def sync_value(key, value):
-    st.session_state[f'{key}_val'] = value
+with col2:
+    st.markdown("**Concrete Strength, f'c/fcu (MPa)**")
+    col_slider, col_input = st.columns([3, 1])
+    with col_slider:
+        fcu_slider = st.slider("fcu_slider", 0.0, 50.0, st.session_state.fcu, 2.5,
+                              label_visibility="collapsed", key='fcu_slider_key')
+    with col_input:
+        fcu_input = st.number_input("fcu_input", value=fcu_slider, min_value=0.0, max_value=50.0,
+                                   step=2.5, label_visibility="collapsed", key='fcu_input_key')
+    st.session_state.fcu = fcu_input
+    fcu = fcu_input
 
-# Material properties with sync
-if input_method == "Sliders":
-    st.sidebar.info("💡 Values are synced between methods")
-    
-    fy = st.sidebar.slider("Steel Yield Strength, fy (MPa)", 
-                          min_value=0.0, max_value=600.0, 
-                          value=st.session_state.fy_val, 
-                          step=10.0, key='fy',
-                          on_change=sync_value, args=('fy', st.session_state.get('fy', 0.0)))
-    st.session_state.fy_val = fy
-    
-    fcu = st.sidebar.slider("Concrete Strength, f'c/fcu (MPa)", 
-                           min_value=0.0, max_value=50.0, 
-                           value=st.session_state.fcu_val, 
-                           step=2.5, key='fcu',
-                           on_change=sync_value, args=('fcu', st.session_state.get('fcu', 0.0)))
-    st.session_state.fcu_val = fcu
-else:
-    fy_input = st.sidebar.number_input("Steel Yield Strength, fy (MPa)", 
-                                value=st.session_state.fy_val if st.session_state.fy_val > 0 else None, 
-                                min_value=0.0, max_value=600.0, 
-                                step=10.0, key='fy_manual', placeholder="Enter fy")
-    if fy_input is not None:
-        st.session_state.fy_val = fy_input
-        fy = fy_input
-    else:
-        fy = None
-    
-    fcu_input = st.sidebar.number_input("Concrete Strength, f'c/fcu (MPa)", 
-                                 value=st.session_state.fcu_val if st.session_state.fcu_val > 0 else None, 
-                                 min_value=0.0, max_value=50.0, 
-                                 step=2.5, key='fcu_manual', placeholder="Enter f'c/fcu")
-    if fcu_input is not None:
-        st.session_state.fcu_val = fcu_input
-        fcu = fcu_input
-    else:
-        fcu = None
+# Loading
+st.markdown("### Loading")
+col1, col2 = st.columns(2)
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("Loading")
+with col1:
+    st.markdown("**Ultimate Moment, Mu (kN.m)**")
+    col_slider, col_input = st.columns([3, 1])
+    with col_slider:
+        Mu_slider = st.slider("Mu_slider", 0.0, 500.0, st.session_state.Mu, 0.5,
+                             label_visibility="collapsed", key='Mu_slider_key')
+    with col_input:
+        Mu_input = st.number_input("Mu_input", value=Mu_slider, min_value=0.0,
+                                  step=0.1, label_visibility="collapsed", key='Mu_input_key')
+    st.session_state.Mu = Mu_input
+    Mu = Mu_input
 
-if input_method == "Sliders":
-    Mu = st.sidebar.slider("Ultimate Moment, Mu (kN.m)", 
-                          min_value=0.0, max_value=500.0, 
-                          value=st.session_state.Mu_val, 
-                          step=0.5, key='Mu')
-    st.session_state.Mu_val = Mu
-else:
-    Mu_input = st.sidebar.number_input("Ultimate Moment, Mu (kN.m)", 
-                                value=st.session_state.Mu_val if st.session_state.Mu_val > 0 else None, 
-                                min_value=0.0, 
-                                step=0.1, key='Mu_manual', placeholder="Enter Mu")
-    if Mu_input is not None:
-        st.session_state.Mu_val = Mu_input
-        Mu = Mu_input
-    else:
-        Mu = None
+# Section Dimensions
+st.markdown("### Section Dimensions")
+col1, col2, col3 = st.columns(3)
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("Section Dimensions")
+with col1:
+    st.markdown("**Width, b (mm)**")
+    col_slider, col_input = st.columns([3, 1])
+    with col_slider:
+        b_slider = st.slider("b_slider", 0.0, 2000.0, st.session_state.b, 50.0,
+                            label_visibility="collapsed", key='b_slider_key')
+    with col_input:
+        b_input = st.number_input("b_input", value=b_slider, min_value=0.0,
+                                 step=50.0, label_visibility="collapsed", key='b_input_key')
+    st.session_state.b = b_input
+    b = b_input
 
-if input_method == "Sliders":
-    b = st.sidebar.slider("Width, b (mm)", 
-                         min_value=0.0, max_value=2000.0, 
-                         value=st.session_state.b_val, 
-                         step=50.0, key='b')
-    st.session_state.b_val = b
-    
-    h = st.sidebar.slider("Height, h (mm)", 
-                         min_value=0.0, max_value=1000.0, 
-                         value=st.session_state.h_val, 
-                         step=10.0, key='h')
-    st.session_state.h_val = h
-    
-    cover = st.sidebar.slider("Cover (mm)", 
-                             min_value=0.0, max_value=75.0,
-                             value=st.session_state.cover_val, 
-                             step=5.0, key='cover')
-    st.session_state.cover_val = cover
-else:
-    b_input = st.sidebar.number_input("Width, b (mm)", 
-                               value=st.session_state.b_val if st.session_state.b_val > 0 else None, 
-                               min_value=0.0, 
-                               step=50.0, key='b_manual', placeholder="Enter b")
-    if b_input is not None:
-        st.session_state.b_val = b_input
-        b = b_input
-    else:
-        b = None
-    
-    h_input = st.sidebar.number_input("Height, h (mm)", 
-                               value=st.session_state.h_val if st.session_state.h_val > 0 else None, 
-                               min_value=0.0, 
-                               step=10.0, key='h_manual', placeholder="Enter h")
-    if h_input is not None:
-        st.session_state.h_val = h_input
-        h = h_input
-    else:
-        h = None
-    
-    cover_input = st.sidebar.number_input("Cover (mm)", 
-                                   value=st.session_state.cover_val if st.session_state.cover_val >= 0 else None, 
-                                   min_value=0.0, max_value=75.0, 
-                                   step=5.0, key='cover_manual', placeholder="Enter cover")
-    if cover_input is not None:
-        st.session_state.cover_val = cover_input
-        cover = cover_input
-    else:
-        cover = None
+with col2:
+    st.markdown("**Height, h (mm)**")
+    col_slider, col_input = st.columns([3, 1])
+    with col_slider:
+        h_slider = st.slider("h_slider", 0.0, 1000.0, st.session_state.h, 10.0,
+                            label_visibility="collapsed", key='h_slider_key')
+    with col_input:
+        h_input = st.number_input("h_input", value=h_slider, min_value=0.0,
+                                 step=10.0, label_visibility="collapsed", key='h_input_key')
+    st.session_state.h = h_input
+    h = h_input
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("Design Parameters")
+with col3:
+    st.markdown("**Cover (mm)**")
+    col_slider, col_input = st.columns([3, 1])
+    with col_slider:
+        cover_slider = st.slider("cover_slider", 0.0, 75.0, st.session_state.cover, 5.0,
+                                label_visibility="collapsed", key='cover_slider_key')
+    with col_input:
+        cover_input = st.number_input("cover_input", value=cover_slider, min_value=0.0, max_value=75.0,
+                                     step=5.0, label_visibility="collapsed", key='cover_input_key')
+    st.session_state.cover = cover_input
+    cover = cover_input
 
+# Design Parameters (only for ACI)
 if design_code == "ACI 318":
-    if input_method == "Sliders":
-        phi = st.sidebar.slider("Strength Reduction Factor, φ", 
-                               min_value=0.0, max_value=0.9,
-                               value=st.session_state.phi_val, 
-                               step=0.05, key='phi')
-        st.session_state.phi_val = phi
-        
-        jd = st.sidebar.slider("Moment Arm Factor, jd", 
-                              min_value=0.0, max_value=0.95,
-                              value=st.session_state.jd_val, 
-                              step=0.01, key='jd')
-        st.session_state.jd_val = jd
-        
-        beta1 = st.sidebar.slider("β₁ Factor", 
-                                 min_value=0.0, max_value=0.85,
-                                 value=st.session_state.beta1_val, 
-                                 step=0.05, key='beta1')
-        st.session_state.beta1_val = beta1
-    else:
-        phi_input = st.sidebar.number_input("Strength Reduction Factor, φ", 
-                                     value=st.session_state.phi_val if st.session_state.phi_val > 0 else None, 
-                                     min_value=0.0, max_value=0.9, 
-                                     step=0.05, key='phi_manual', placeholder="Enter φ")
-        if phi_input is not None:
-            st.session_state.phi_val = phi_input
-            phi = phi_input
-        else:
-            phi = None
-        
-        jd_input = st.sidebar.number_input("Moment Arm Factor, jd", 
-                                    value=st.session_state.jd_val if st.session_state.jd_val > 0 else None, 
-                                    min_value=0.0, max_value=0.95, 
-                                    step=0.01, key='jd_manual', placeholder="Enter jd")
-        if jd_input is not None:
-            st.session_state.jd_val = jd_input
-            jd = jd_input
-        else:
-            jd = None
-        
-        beta1_input = st.sidebar.number_input("β₁ Factor", 
-                                       value=st.session_state.beta1_val if st.session_state.beta1_val > 0 else None, 
-                                       min_value=0.0, max_value=0.85, 
-                                       step=0.05, key='beta1_manual', placeholder="Enter β₁")
-        if beta1_input is not None:
-            st.session_state.beta1_val = beta1_input
-            beta1 = beta1_input
-        else:
-            beta1 = None
+    st.markdown("### Design Parameters")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("**Reduction Factor, φ**")
+        col_slider, col_input = st.columns([3, 1])
+        with col_slider:
+            phi_slider = st.slider("phi_slider", 0.0, 0.9, st.session_state.phi, 0.05,
+                                  label_visibility="collapsed", key='phi_slider_key')
+        with col_input:
+            phi_input = st.number_input("phi_input", value=phi_slider, min_value=0.0, max_value=0.9,
+                                       step=0.05, label_visibility="collapsed", key='phi_input_key')
+        st.session_state.phi = phi_input
+        phi = phi_input
+    
+    with col2:
+        st.markdown("**Moment Arm Factor, jd**")
+        col_slider, col_input = st.columns([3, 1])
+        with col_slider:
+            jd_slider = st.slider("jd_slider", 0.0, 0.95, st.session_state.jd, 0.01,
+                                 label_visibility="collapsed", key='jd_slider_key')
+        with col_input:
+            jd_input = st.number_input("jd_input", value=jd_slider, min_value=0.0, max_value=0.95,
+                                      step=0.01, label_visibility="collapsed", key='jd_input_key')
+        st.session_state.jd = jd_input
+        jd = jd_input
+    
+    with col3:
+        st.markdown("**β₁ Factor**")
+        col_slider, col_input = st.columns([3, 1])
+        with col_slider:
+            beta1_slider = st.slider("beta1_slider", 0.0, 0.85, st.session_state.beta1, 0.05,
+                                    label_visibility="collapsed", key='beta1_slider_key')
+        with col_input:
+            beta1_input = st.number_input("beta1_input", value=beta1_slider, min_value=0.0, max_value=0.85,
+                                         step=0.05, label_visibility="collapsed", key='beta1_input_key')
+        st.session_state.beta1 = beta1_input
+        beta1 = beta1_input
 
 # Validation
 if design_code == "ACI 318":
-    if input_method == "Sliders":
-        all_inputs_valid = all([
-            fy > 0, fcu > 0, Mu > 0, b > 0, h > 0, cover >= 0,
-            h > cover, phi > 0, jd > 0, beta1 > 0
-        ])
-    else:
-        all_inputs_valid = all([
-            fy is not None and fy > 0,
-            fcu is not None and fcu > 0,
-            Mu is not None and Mu > 0,
-            b is not None and b > 0,
-            h is not None and h > 0,
-            cover is not None and cover >= 0,
-            h is not None and cover is not None and h > cover,
-            phi is not None and phi > 0,
-            jd is not None and jd > 0,
-            beta1 is not None and beta1 > 0
-        ])
-else:  # Egyptian Code
-    if input_method == "Sliders":
-        all_inputs_valid = all([
-            fy > 0, fcu > 0, Mu > 0, b > 0, h > 0, cover >= 0, h > cover
-        ])
-    else:
-        all_inputs_valid = all([
-            fy is not None and fy > 0,
-            fcu is not None and fcu > 0,
-            Mu is not None and Mu > 0,
-            b is not None and b > 0,
-            h is not None and h > 0,
-            cover is not None and cover >= 0,
-            h is not None and cover is not None and h > cover
-        ])
+    all_inputs_valid = all([
+        fy > 0, fcu > 0, Mu > 0, b > 0, h > 0, cover >= 0,
+        h > cover, phi > 0, jd > 0, beta1 > 0
+    ])
+else:
+    all_inputs_valid = all([
+        fy > 0, fcu > 0, Mu > 0, b > 0, h > 0, cover >= 0, h > cover
+    ])
 
 if not all_inputs_valid:
     st.warning("⚠️ Please enter all input values to proceed with calculations")
-    if input_method == "Sliders":
-        st.info("💡 Set all sliders to appropriate values")
-    else:
-        st.info("💡 Fill in all required parameters in the sidebar")
     st.stop()
 
-# Calculations based on selected code
+# Calculations
 try:
     d = h - cover
     
@@ -383,50 +289,43 @@ try:
         
         utilization = (Mu / phi_Mn) * 100 if phi_Mn > 0 else 0
         
-    else:  # Egyptian Code
-        # Egyptian Code calculations
-        # C1 = d / √(fcu × b)
-        C1 = d / math.sqrt(fcu * b)
+    else:  # Egyptian Code (ECP 203)
+        # Egyptian Code - الوحدات بالسنتيمتر
+        d_cm = d / 10  # تحويل من mm إلى cm
+        b_cm = b / 10
+        Mu_kgcm = Mu * 1e5  # kN.m to kg.cm
+        fcu_kgcm2 = fcu * 10  # MPa to kg/cm²
+        fy_kgcm2 = fy * 10
+        
+        # C1 = d / √(fcu × b) - بالسنتيمتر
+        C1 = d_cm / math.sqrt(fcu_kgcm2 * b_cm)
         C1_min = 2.76
         
-        # Check if C1 > C1_min
-        if C1 <= C1_min:
-            st.warning(f"⚠️ C1 = {C1:.2f} ≤ C1_min = {C1_min}")
-        
-        # J = (1/1.15) × (0.5 + √(0.25 - Mu/(0.9 × C1²)))
-        # Mu here should be in ton.m, we have kN.m
-        # Convert: 1 kN.m = 0.102 ton.m (approximately)
-        Mu_tonm = Mu * 0.102
-        
-        term_inside_sqrt = 0.25 - (Mu_tonm / (0.9 * C1 * C1))
+        # حساب J
+        term_inside_sqrt = 0.25 - (Mu_kgcm / (0.9 * fcu_kgcm2 * b_cm * d_cm * d_cm))
         
         if term_inside_sqrt < 0:
             st.error("❌ Error: Section is too small. Increase dimensions or reduce moment.")
             st.stop()
         
         J_calculated = (1/1.15) * (0.5 + math.sqrt(term_inside_sqrt))
-        
-        # J_max (typically 0.95 for Egyptian Code)
         J_max = 0.95
         J = min(J_calculated, J_max)
         
         # As = Mu / (fy × J × d)
-        # Using Mu in kN.m and converting properly
-        As_required = (Mu_tonm * 1e7) / (fy * J * d)  # ton.m to kg.cm, then to mm²
+        As_calculated_cm2 = Mu_kgcm / (fy_kgcm2 * J * d_cm)
+        As_calculated = As_calculated_cm2 * 100  # cm² to mm²
         
-        # Minimum steel (Egyptian Code)
-        # As_min = 0.6/fy × b × d (for main reinforcement)
+        # Minimum steel
         As_min = (0.6 / fy) * b * d
         
-        As_required = max(As_required, As_min)
+        As_required = max(As_calculated, As_min)
         
         # Check strain and capacity
-        # a = As × fy / (0.67 × fcu × b) for Egyptian Code
         a_final = (As_required * fy) / (0.67 * fcu * b)
-        c = a_final / 0.8  # β1 = 0.8 for Egyptian Code
+        c = a_final / 0.8
         es = ((d - c) / c) * 0.003
         
-        # Capacity
         phi_Mn_Nmm = 0.9 * As_required * fy * (d - a_final/2)
         phi_Mn = phi_Mn_Nmm / 1e6
         
@@ -449,34 +348,15 @@ except Exception as e:
     st.error(f"❌ Calculation Error: {str(e)}")
     st.stop()
 
-# Display code indicator
+# Display results
+st.markdown("---")
 st.markdown(f"**📘 Design Code: {design_code}**")
 st.markdown("---")
 
-# Input Summary
-st.markdown('<h2 class="section-header">📋 Input Summary</h2>', unsafe_allow_html=True)
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("Mu", f"{Mu:.2f} kN.m")
-    st.metric("b", f"{b:.0f} mm")
-with col2:
-    st.metric("h", f"{h:.0f} mm")
-    st.metric("cover", f"{cover:.0f} mm")
-with col3:
-    st.metric("fy", f"{fy:.0f} MPa")
-    st.metric("f'c/fcu", f"{fcu:.1f} MPa")
-with col4:
-    if design_code == "ACI 318":
-        st.metric("φ", f"{phi:.2f}")
-        st.metric("jd", f"{jd:.2f}")
-    else:
-        st.metric("Design Code", "ECP 203")
-
-# Calculations
+# Calculations Display
 st.markdown('<h2 class="section-header">🔢 Calculations</h2>', unsafe_allow_html=True)
 
 if design_code == "ACI 318":
-    # ACI Calculations Display
     calculations = []
     
     calculations.append({
@@ -510,7 +390,7 @@ if design_code == "ACI 318":
     calculations.append({
         'step': '5', 'description': 'Minimum As',
         'formula': r'A_{s,min} = \max\left(\frac{0.25\sqrt{f_c^\prime}}{f_y}b_w d, \frac{1.4}{f_y}b_w d\right)',
-        'substitution': rf'\max\left(\frac{{0.25 \times {math.sqrt(fcu):.2f}}}{{{fy:.0f}}} \times {b:.0f} \times {d:.1f}, \frac{{1.4}}{{{fy:.0f}}} \times {b:.0f} \times {d:.1f}\right)',
+        'substitution': rf'\max({As_min_1:.1f}, {As_min_2:.1f})',
         'result': f'{As_min:.1f} mm²', 'variable': 'As,min'
     })
     
@@ -521,48 +401,6 @@ if design_code == "ACI 318":
         'substitution': rf'\max({As_calculated:.1f}, {As_min:.1f})',
         'result': f'{As_required:.1f} mm² ({governing})', 'variable': 'As,req'
     })
-    
-    calculations.append({
-        'step': '7', 'description': 'Final a',
-        'formula': r"a = \frac{A_{s,req} f_y}{0.85 f'_c b}",
-        'substitution': rf'\frac{{{As_required:.1f} \times {fy:.0f}}}{{0.85 \times {fcu:.1f} \times {b:.0f}}}',
-        'result': f'{a_final:.2f} mm', 'variable': 'a,final'
-    })
-    
-    calculations.append({
-        'step': '8', 'description': 'Neutral Axis',
-        'formula': r'c = \frac{a}{\beta_1}',
-        'substitution': rf'\frac{{{a_final:.2f}}}{{{beta1:.2f}}}',
-        'result': f'{c:.2f} mm', 'variable': 'c'
-    })
-    
-    calculations.append({
-        'step': '9', 'description': 'Steel Strain',
-        'formula': r'\varepsilon_s = \frac{d-c}{c} \times 0.003',
-        'substitution': rf'\frac{{{d:.1f} - {c:.2f}}}{{{c:.2f}}} \times 0.003',
-        'result': f'{es:.5f}', 'variable': 'εs'
-    })
-    
-    calculations.append({
-        'step': '10', 'description': 'Check εs',
-        'formula': r'\varepsilon_s \geq 0.002',
-        'substitution': f'{es:.5f} ≥ 0.002',
-        'result': f'{"PASS ✓" if strain_safe else "FAIL ✗"} ({strain_status})', 'variable': 'Check'
-    })
-    
-    calculations.append({
-        'step': '11', 'description': 'Design Capacity',
-        'formula': r'\phi M_n = \phi A_{s,req} f_y (d - a/2)',
-        'substitution': rf'{phi:.2f} \times {As_required:.1f} \times {fy:.0f} \times ({d:.1f} - {a_final/2:.2f})',
-        'result': f'{phi_Mn:.2f} kN.m', 'variable': 'φMn'
-    })
-    
-    calculations.append({
-        'step': '12', 'description': 'Capacity Check',
-        'formula': r'\phi M_n \geq M_u',
-        'substitution': f'{phi_Mn:.2f} ≥ {Mu:.2f}',
-        'result': f'{"SAFE ✓" if capacity_safe else "UNSAFE ✗"} ({utilization:.1f}%)', 'variable': 'Check'
-    })
 
 else:  # Egyptian Code
     calculations = []
@@ -571,41 +409,42 @@ else:  # Egyptian Code
         'step': '1', 'description': 'Effective Depth',
         'formula': r'd = T_s - \text{cover}',
         'substitution': rf'{h:.0f} - {cover:.0f}',
-        'result': f'{d:.1f} mm', 'variable': 'd'
+        'result': f'{d:.1f} mm = {d_cm:.2f} cm', 'variable': 'd'
     })
     
     calculations.append({
         'step': '2', 'description': 'C₁ Factor',
         'formula': r'C_1 = \frac{d}{\sqrt{f_{cu} \times B}}',
-        'substitution': rf'\frac{{{d:.1f}}}{{\sqrt{{{fcu:.1f} \times {b:.0f}}}}}',
+        'substitution': rf'\frac{{{d_cm:.2f}}}{{\sqrt{{{fcu_kgcm2:.0f} \times {b_cm:.1f}}}}}',
         'result': f'{C1:.3f}', 'variable': 'C₁'
     })
     
+    check_c1 = C1 > C1_min
     calculations.append({
         'step': '3', 'description': 'Check C₁',
         'formula': r'C_1 > C_{1,min} = 2.76',
         'substitution': f'{C1:.3f} > 2.76',
-        'result': f'{"PASS ✓" if C1 > C1_min else "FAIL ✗"}', 'variable': 'Check'
+        'result': f'{"PASS ✓" if check_c1 else "FAIL ✗"}', 'variable': 'Check'
     })
     
     calculations.append({
         'step': '4', 'description': 'J Factor',
-        'formula': r'J = \frac{1}{1.15}\left(0.5 + \sqrt{0.25 - \frac{M_u}{0.9 \times C_1^2}}\right)',
-        'substitution': rf'\frac{{1}}{{1.15}}\left(0.5 + \sqrt{{0.25 - \frac{{{Mu_tonm:.3f}}}{{0.9 \times {C1:.3f}^2}}}}\right)',
+        'formula': r'J = \frac{1}{1.15}\left(0.5 + \sqrt{0.25 - \frac{M_u}{0.9 \times f_{cu} \times B \times d^2}}\right)',
+        'substitution': rf'{J_calculated:.4f}',
         'result': f'{J_calculated:.4f}', 'variable': 'J'
     })
     
     calculations.append({
         'step': '5', 'description': 'J Maximum',
-        'formula': r'J_{max} = 0.95',
-        'substitution': f'J = min({J_calculated:.4f}, 0.95)',
+        'formula': r'J = \min(J_{calc}, 0.95)',
+        'substitution': f'min({J_calculated:.4f}, 0.95)',
         'result': f'{J:.4f}', 'variable': 'J,final'
     })
     
     calculations.append({
         'step': '6', 'description': 'Required As',
         'formula': r'A_s = \frac{M_u}{f_y \times J \times d}',
-        'substitution': rf'\frac{{{Mu_tonm:.3f} \times 10^7}}{{{fy:.0f} \times {J:.4f} \times {d:.1f}}}',
+        'substitution': rf'\frac{{{Mu_kgcm:.2e}}}{{{fy_kgcm2:.0f} \times {J:.4f} \times {d_cm:.2f}}}',
         'result': f'{As_required:.1f} mm²', 'variable': 'As'
     })
     
@@ -614,27 +453,6 @@ else:  # Egyptian Code
         'formula': r'A_{s,min} = \frac{0.6}{f_y} \times b \times d',
         'substitution': rf'\frac{{0.6}}{{{fy:.0f}}} \times {b:.0f} \times {d:.1f}',
         'result': f'{As_min:.1f} mm²', 'variable': 'As,min'
-    })
-    
-    calculations.append({
-        'step': '8', 'description': 'Steel Strain',
-        'formula': r'\varepsilon_s = \frac{d-c}{c} \times 0.003',
-        'substitution': rf'\frac{{{d:.1f} - {c:.2f}}}{{{c:.2f}}} \times 0.003',
-        'result': f'{es:.5f}', 'variable': 'εs'
-    })
-    
-    calculations.append({
-        'step': '9', 'description': 'Design Capacity',
-        'formula': r'\phi M_n = 0.9 \times A_s \times f_y \times (d - a/2)',
-        'substitution': rf'0.9 \times {As_required:.1f} \times {fy:.0f} \times ({d:.1f} - {a_final/2:.2f})',
-        'result': f'{phi_Mn:.2f} kN.m', 'variable': 'φMn'
-    })
-    
-    calculations.append({
-        'step': '10', 'description': 'Capacity Check',
-        'formula': r'\phi M_n \geq M_u',
-        'substitution': f'{phi_Mn:.2f} ≥ {Mu:.2f}',
-        'result': f'{"SAFE ✓" if capacity_safe else "UNSAFE ✗"} ({utilization:.1f}%)', 'variable': 'Check'
     })
 
 # Display calculations
@@ -667,6 +485,7 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.markdown("**📏 Required Steel Area**")
     st.metric("As Required", f"{As_required:.1f} mm²")
+    st.metric("As Minimum", f"{As_min:.1f} mm²")
     st.metric("Effective Depth", f"{d:.1f} mm")
 
 with col2:
@@ -683,20 +502,20 @@ with col3:
     if overall_safe:
         st.success("### ✅ DESIGN IS SAFE")
     else:
-        st.error("### ❌ DESIGN FAILED")
+        st.error("### ❌ DESIGN NEEDS REVISION")
     
     st.markdown("**Checks:**")
-    st.markdown(f"{'✅' if strain_safe else '❌'} Steel Strain: {es:.5f} {'≥' if strain_safe else '<'} 0.002")
-    st.markdown(f"{'✅' if capacity_safe else '❌'} Capacity: φMn={phi_Mn:.2f} {'≥' if capacity_safe else '<'} Mu={Mu:.2f}")
+    st.markdown(f"{'✅' if strain_safe else '❌'} εs: {es:.5f} {'≥' if strain_safe else '<'} 0.002")
+    st.markdown(f"{'✅' if capacity_safe else '❌'} φMn={phi_Mn:.2f} {'≥' if capacity_safe else '<'} Mu={Mu:.2f}")
     st.markdown(f"{'✅' if As_required >= As_min else '❌'} Minimum Steel")
     
-    st.metric("Capacity Ratio", f"{phi_Mn/Mu:.2f}")
+    st.metric("Utilization", f"{utilization:.1f}%")
+    st.metric("φMn", f"{phi_Mn:.2f} kN.m")
 
-# Reinforcement Selection Section
+# Reinforcement Selection
 st.markdown("---")
 st.markdown('<h2 class="section-header">🔧 Reinforcement Selection</h2>', unsafe_allow_html=True)
 
-# Auto suggestions
 st.markdown("### 💡 Automatic Suggestions")
 col1, col2, col3 = st.columns(3)
 
@@ -741,10 +560,8 @@ with col2:
         index=3
     )
 
-# Get selected reinforcement area
 selected_As = rebar_data[selected_diameter][selected_num_bars - 1]
 
-# Verify selected reinforcement
 st.markdown("---")
 st.markdown("### ✅ Selected Reinforcement Verification")
 
@@ -766,26 +583,22 @@ with col3:
         st.error(f"✗ As Check\n{selected_As:.0f} < {As_required:.0f}")
 
 with col4:
-    # Re-calculate capacity with selected As
     if design_code == "ACI 318":
         a_selected = (selected_As * fy) / (0.85 * fcu * b)
         c_selected = a_selected / beta1
+        phi_Mn_selected = (phi * selected_As * fy * (d - a_selected/2)) / 1e6
     else:
         a_selected = (selected_As * fy) / (0.67 * fcu * b)
         c_selected = a_selected / 0.8
-    
-    es_selected = ((d - c_selected) / c_selected) * 0.003
-    
-    if design_code == "ACI 318":
-        phi_Mn_selected = (phi * selected_As * fy * (d - a_selected/2)) / 1e6
-    else:
         phi_Mn_selected = (0.9 * selected_As * fy * (d - a_selected/2)) / 1e6
     
+    es_selected = ((d - c_selected) / c_selected) * 0.003
     check_capacity = phi_Mn_selected >= Mu
+    
     if check_capacity:
-        st.success(f"✓ Capacity Check\nφMn = {phi_Mn_selected:.2f} kN.m")
+        st.success(f"✓ Capacity\nφMn = {phi_Mn_selected:.2f}")
     else:
-        st.error(f"✗ Capacity Check\nφMn = {phi_Mn_selected:.2f} kN.m")
+        st.error(f"✗ Capacity\nφMn = {phi_Mn_selected:.2f}")
 
 # Detailed verification
 st.markdown("---")
@@ -813,9 +626,9 @@ with col3:
     final_safe = check_As and check_capacity and (es_selected >= 0.002)
     
     if final_safe:
-        st.success("### ✅ SELECTED CONFIG IS SAFE")
+        st.success("### ✅ CONFIG IS SAFE")
     else:
-        st.error("### ❌ SELECTED CONFIG FAILED")
+        st.error("### ❌ CONFIG FAILED")
     
     st.metric("Utilization", f"{(Mu/phi_Mn_selected)*100:.1f}%")
 
