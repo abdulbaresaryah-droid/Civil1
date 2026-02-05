@@ -1,14 +1,14 @@
 import streamlit as st
 import math
 
-# --- Page Configuration ---
+# --- 1. Page Configuration ---
 st.set_page_config(
     page_title="RC Slab/Beam Designer",
     page_icon="🏗️",
     layout="wide"
 )
 
-# --- Custom CSS for "Senior" Look ---
+# --- 2. Custom CSS for Professional UI ---
 st.markdown("""
 <style>
     .main-header {
@@ -16,45 +16,49 @@ st.markdown("""
         color: #1E88E5;
         text-align: center;
         margin-bottom: 1rem;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
     .equation-box {
-        background-color: #f0f2f6;
+        background-color: #f8f9fa;
         padding: 15px;
-        border-radius: 10px;
+        border-radius: 8px;
         border-left: 5px solid #1E88E5;
         margin-bottom: 20px;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }
     .success-box {
         background-color: #d4edda;
-        padding: 10px;
-        border-radius: 5px;
+        padding: 15px;
+        border-radius: 8px;
         color: #155724;
         font-weight: bold;
         text-align: center;
+        border: 1px solid #c3e6cb;
     }
     .fail-box {
         background-color: #f8d7da;
-        padding: 10px;
-        border-radius: 5px;
+        padding: 15px;
+        border-radius: 8px;
         color: #721c24;
         font-weight: bold;
         text-align: center;
+        border: 1px solid #f5c6cb;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Title ---
+# --- Main Title ---
 st.markdown('<div class="main-header">🏗️ Reinforced Concrete Design (ACI 318)</div>', unsafe_allow_html=True)
 st.markdown("---")
 
-# --- Sidebar Inputs (The 'Volume Control' Logic) ---
+# --- 3. Sidebar Inputs ---
 st.sidebar.header("1. Material Properties")
 
-# Concrete Strength (fc')
+# Concrete Strength (f'c)
 fc = st.sidebar.slider(
     "Concrete Compressive Strength (f'c) [MPa]",
-    min_value=20, max_value=60, value=25, step=1,
-    help="Cylinder strength of concrete"
+    min_value=20, max_value=80, value=25, step=1,
+    help="Specified compressive strength of concrete at 28 days."
 )
 
 # Steel Yield Strength (fy)
@@ -72,13 +76,13 @@ b = st.sidebar.slider(
     min_value=100, max_value=2000, value=1000, step=50
 )
 
-# Height (h)
+# Total Depth (h)
 h = st.sidebar.slider(
     "Section Total Depth (h) [mm]",
-    min_value=100, max_value=1000, value=150, step=10
+    min_value=100, max_value=1500, value=150, step=10
 )
 
-# Cover
+# Concrete Cover
 cover = st.sidebar.slider(
     "Concrete Cover [mm]",
     min_value=10, max_value=100, value=20, step=5
@@ -86,67 +90,65 @@ cover = st.sidebar.slider(
 
 st.sidebar.header("3. Loads & Factors")
 
-# Moment (Mu) - Using a slider with a float input capability via 'format'
+# Ultimate Moment (Mu)
 mu_val = st.sidebar.slider(
     "Ultimate Moment (Mu) [kN.m]",
-    min_value=1.0, max_value=500.0, value=13.7, step=0.1
+    min_value=1.0, max_value=1000.0, value=13.7, step=0.1
 )
 
-# Initial guess factor (jd coefficient)
+# Initial j-factor (for estimation only)
 jd_init_factor = st.sidebar.slider(
     "Initial j-factor assumption (default 0.95 for slabs)",
     min_value=0.85, max_value=0.99, value=0.95, step=0.01
 )
 
-# --- Calculations Engine ---
+# --- 4. Calculation Engine ---
 
-# 1. Effective Depth (d)
+# Calculate Effective Depth (d)
 d = h - cover
 
-# 2. Beta1 Calculation (ACI 318)
+# Calculate Beta1 (ACI 318)
 if fc <= 28:
     beta1 = 0.85
 else:
     beta1 = 0.85 - 0.05 * ((fc - 28) / 7)
     if beta1 < 0.65: beta1 = 0.65
 
-# Create two columns for layout
-col1, col2 = st.columns([1, 1.2])
+# Layout: Split into two columns
+col1, col2 = st.columns([1, 1.3])
 
 with col1:
-    st.subheader("📊 Geometry & Inputs Check")
-    st.write(f"**Depth ($d$):** {d} mm")
+    st.subheader("📊 Design Parameters")
+    st.write(f"**Effective Depth ($d$):** {d} mm")
     st.write(f"**Width ($b$):** {b} mm")
-    st.write(f"**$f'_c$:** {fc} MPa | **$f_y$:** {fy} MPa")
-    st.write(f"**$M_u$:** {mu_val} kN.m")
+    st.write(f"**Materials:** $f'_c={fc}$ MPa | $f_y={fy}$ MPa")
+    st.write(f"**Design Moment ($M_u$):** {mu_val} kN.m")
     
-    # Visualization (Placeholder for a section drawing later)
-    st.info("Calculation follows ACI 318 Code (Ultimate Strength Design)")
+    st.info("Calculation follows ACI 318 Ultimate Strength Design Method.")
 
 with col2:
-    st.subheader("🧮 Detailed Calculations")
+    st.subheader("🧮 Step-by-Step Calculation")
 
     # --- Step 1: Initial Estimation ---
-    st.markdown("#### Step 1: Initial Requirement ($A_{s, initial}$)")
-    st.write("Assuming tension controlled section initially:")
+    st.markdown("#### Step 1: Initial Steel Estimate")
+    st.write("Assuming tension-controlled section ($\phi=0.9$) and initial lever arm:")
     
-    # Equation display
     st.latex(r"A_{s,approx} = \frac{M_u \times 10^6}{\phi f_y (j_{coeff} \cdot d)}")
     
-    # Calculation
-    # Note: Mu is in kN.m, need to convert to N.mm (* 10^6)
+    # Define variables before display
     phi_assume = 0.9
+    # Calculate As initial (Moment converted to N.mm)
     as_initial = (mu_val * 1e6) / (phi_assume * fy * (jd_init_factor * d))
     
     st.markdown(f"""
     <div class="equation-box">
-    Using $j \approx {jd_init_factor}$: <br>
+    Using assumed $j \approx {jd_init_factor}$: <br>
     $A_{s,approx} = {as_initial:.2f} \ mm^2$
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Step 2: Calculate 'a' (Depth of equivalent stress block) ---
-    st.markdown("#### Step 2: Calculate Stress Block ($a$)")
+    # --- Step 2: Calculate Equivalent Stress Block (a) ---
+    st.markdown("#### Step 2: Calculate Stress Block Depth ($a$)")
     st.latex(r"a = \frac{A_{s,approx} f_y}{0.85 f'_c b}")
     
     a_calc = (as_initial * fy) / (0.85 * fc * b)
@@ -158,7 +160,7 @@ with col2:
     """, unsafe_allow_html=True)
 
     # --- Step 3: Refine As ---
-    st.markdown("#### Step 3: Refine Steel Area ($A_{s, req}$)")
+    st.markdown("#### Step 3: Required Steel Area ($A_{s, req}$)")
     st.latex(r"A_{s,req} = \frac{M_u \times 10^6}{\phi f_y (d - a/2)}")
     
     as_req = (mu_val * 1e6) / (phi_assume * fy * (d - (a_calc / 2)))
@@ -170,8 +172,8 @@ with col2:
     """, unsafe_allow_html=True)
 
     # --- Step 4: Minimum Reinforcement (ACI 318) ---
-    st.markdown("#### Step 4: Check Minimum Reinforcement ($A_{s, min}$)")
-    st.write("ACI 318 requires the maximum of:")
+    st.markdown("#### Step 4: Minimum Reinforcement Check ($A_{s, min}$)")
+    st.write("According to ACI 318, $A_{s,min}$ is the greater of:")
     st.latex(r"1) \ \frac{0.25 \sqrt{f'_c}}{f_y} b_w d \quad \text{and} \quad 2) \ \frac{1.4}{f_y} b_w d")
     
     as_min_1 = ((0.25 * math.sqrt(fc)) / fy) * b * d
@@ -186,36 +188,41 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Final As Selection ---
-    st.markdown("### ✅ Final Design Steel ($A_s$)")
+    # --- Final Selection ---
+    st.markdown("### ✅ Final Design Steel Area ($A_s$)")
     as_final = max(as_req, as_min)
     
-    st.success(f"Design As = {as_final:.2f} mm²")
+    st.success(f"Required As = {as_final:.2f} mm²")
+    
     if as_final == as_min:
-        st.caption("(Governed by Minimum Reinforcement)")
+        st.caption("⚠️ Governed by Minimum Reinforcement Requirements.")
     else:
-        st.caption("(Governed by Applied Moment)")
+        st.caption("Governed by Flexural Strength Requirements.")
 
-# --- Analysis & Safety Check Section ---
+# --- 5. Analysis & Safety Check ---
 st.markdown("---")
-st.header("🛡️ Safety & Analysis Check")
+st.header("🛡️ Safety & Strain Analysis Check")
 
 col_check1, col_check2, col_check3 = st.columns(3)
 
 with col_check1:
-    st.markdown("**1. Neutral Axis ($c$)**")
-    st.latex(r"c = a / \beta_1")
-    c_depth = a_calc / beta1
+    st.markdown("**1. Neutral Axis Depth ($c$)**")
+    # Recalculate 'a' based on FINAL As (in case As_min governed)
+    a_final = (as_final * fy) / (0.85 * fc * b)
+    c_depth = a_final / beta1
+    
+    st.latex(r"c = a_{final} / \beta_1")
     st.write(f"$c = {c_depth:.2f}$ mm")
-    st.caption(f"($\\beta_1 = {beta1:.2f}$)")
+    st.caption(f"Using $\\beta_1 = {beta1:.2f}$")
 
 with col_check2:
     st.markdown("**2. Net Tensile Strain ($\epsilon_t$)**")
     st.latex(r"\epsilon_t = \frac{d-c}{c} \times 0.003")
+    
     epsilon_t = ((d - c_depth) / c_depth) * 0.003
     st.write(f"$\epsilon_t = {epsilon_t:.5f}$")
     
-    # Phi Calculation based on Strain
+    # Determine Strength Reduction Factor (phi) based on strain
     if epsilon_t >= 0.005:
         phi_actual = 0.9
         status = "Tension Controlled (OK)"
@@ -230,38 +237,36 @@ with col_check2:
         status = "Transition Zone"
         color = "orange"
         
-    st.markdown(f"<span style='color:{color}'>**{status}**</span>", unsafe_allow_html=True)
+    st.markdown(f"<span style='color:{color}; font-weight:bold'>{status}</span>", unsafe_allow_html=True)
 
 with col_check3:
-    st.markdown("**3. Capacity ($\phi M_n$)**")
-    # Calculate moment capacity with the actual calculated 'a' and 'phi'
-    # Recalculate 'a' based on FINAL As (in case As_min governed)
-    a_final = (as_final * fy) / (0.85 * fc * b)
+    st.markdown("**3. Moment Capacity ($\phi M_n$)**")
     
+    # Calculate Final Moment Capacity
     mn = as_final * fy * (d - a_final/2) * 1e-6 # Convert to kN.m
     phi_mn = phi_actual * mn
     
     st.latex(r"\phi M_n = \phi A_s f_y (d - a/2)")
     st.write(f"Capacity = **{phi_mn:.2f} kN.m**")
 
-# --- Final Verdict ---
+# --- Final Conclusion ---
 st.markdown("### Conclusion")
 if phi_mn >= mu_val:
     st.markdown(f"""
     <div class="success-box">
-    SECTION IS SAFE ✅ <br>
-    Capacity ({phi_mn:.2f}) > Demand ({mu_val})
+    ✅ SECTION IS SAFE <br>
+    Capacity ({phi_mn:.2f} kN.m) > Demand ({mu_val} kN.m)
     </div>
     """, unsafe_allow_html=True)
 else:
     st.markdown(f"""
     <div class="fail-box">
-    SECTION IS UNSAFE ❌ <br>
-    Capacity ({phi_mn:.2f}) < Demand ({mu_val}) <br>
-    Increase Depth (h) or Steel Area
+    ❌ SECTION IS UNSAFE <br>
+    Capacity ({phi_mn:.2f} kN.m) < Demand ({mu_val} kN.m) <br>
+    Recommendation: Increase Depth (h) or Concrete Strength.
     </div>
     """, unsafe_allow_html=True)
     
 # --- Footer ---
 st.markdown("---")
-st.caption("Developed with ❤️ by Your Engineering Partner using Streamlit & Python")
+st.caption("Developed with Streamlit & Python | ACI 318 Standard")
